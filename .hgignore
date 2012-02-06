@@ -1,0 +1,6 @@
+syntax: glob
+*~
+.*.sw?
+*.rpl
+*.o
+demux
