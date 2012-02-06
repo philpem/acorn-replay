@@ -192,6 +192,8 @@ class ReplayHeader {
 			if (iVideoFormat != 0) {
 				std::getline(stream, st); TrimSpaces(st); ist.str(st);
 				ist >> iKeyframes;
+			} else {
+				iKeyframes = -1;
 			}
 		}
 
