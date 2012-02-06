@@ -37,14 +37,14 @@ void TrimSpaces( string& str)
 
 class ENotAReplayMovie : public exception {
 	public:
-		virtual const char *what() { return "not an acorn replay movie"; }
+		virtual const char *what() { return "File is not an Acorn Replay movie"; }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 const char * videoFormats[] = {
-	"no video",
+	"<< no video >>",
 	"Moving Lines",
 	"16bpp uncompressed",
 	"10bpp YUV, chroma horiz subsampled by 2",
@@ -62,7 +62,7 @@ const char * videoFormats[] = {
 	"Indirect video",
 	"12bpp YUV chroma H/V subsampled by 2",
 	"Moving Blocks HQ",
-	"h.263",
+	"H.263",
 	"Super Moving Blocks",
 	"Moving Blocks Beta",
 	"16bpp YUV Chroma horiz subsampled by 2",
@@ -88,6 +88,13 @@ class ReplayHeader {
 		uint32_t		iSoundFormat;
 		string			sSoundFormat;
 		float			soundSampleRate;
+		uint32_t		iSoundChannels;
+		uint32_t		iSoundBitsPerSample;
+		uint32_t		iFramesPerChunk;
+		size_t			iNumberOfChunks, iEvenChunkSize, iOddChunkSize;
+		off_t			oCatalogueOffset, oSpriteOffset;
+		size_t			iSpriteSize;
+		ssize_t			iKeyframes;
 
 		ReplayHeader()
 		{
@@ -143,6 +150,49 @@ class ReplayHeader {
 			// Sound rate in Hz
 			std::getline(stream, st); TrimSpaces(st); ist.str(st);
 			ist >> soundSampleRate;
+
+			// Number of audio channels
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> iSoundChannels;
+
+			// Bits per sound sample
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> iSoundBitsPerSample;
+
+			// Frames per chunk
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> iFramesPerChunk;
+
+			// Chunk count
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> iNumberOfChunks;
+
+			// Even chunk size
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> iEvenChunkSize;
+
+			// Odd chunk size
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> iOddChunkSize;
+
+			// Catalogue offset
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> oCatalogueOffset;
+
+			// Offset to sprite
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> oSpriteOffset;
+
+			// Size of sprite
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
+			ist >> iSpriteSize;
+
+			// Keyframe position (ONLY FOR VIDEO!)
+			// Set to -1 for "no keys"
+			if (iVideoFormat != 0) {
+				std::getline(stream, st); TrimSpaces(st); ist.str(st);
+				ist >> iKeyframes;
+			}
 		}
 
 		void dump(void);
@@ -152,6 +202,7 @@ void ReplayHeader::dump(void)
 {
 	cout << "Movie name:   [" << movieName << "]" << endl;
 	cout << "Copyright:    [" << copyright << "]" << endl;
+	cout << "Author:       [" << author << "]" << endl;
 	cout << "Video format: [" << sVideoFormat << "], fmt id " << iVideoFormat << endl << "\t";
 	if (iVideoFormat < NELEMS(videoFormats))
 		cout << videoFormats[iVideoFormat] << endl;
@@ -182,9 +233,23 @@ void ReplayHeader::dump(void)
 	cout << fps << " frames per second" << endl;
 	
 	cout << "Sound format: [" << sSoundFormat << "], fmt id " << iSoundFormat << endl;
-	if (iSoundFormat == 0)
-		cout << "\tNo sound track present." << endl;
-	cout << "Sample rate:  " << soundSampleRate << " Hz" << endl;
+	if (iSoundFormat == 0) {
+		cout << "\t<< no audio >>" << endl;
+	} else {
+		cout << "Sound:        " << soundSampleRate << " Hz, "
+			<< iSoundChannels << " channels, "
+			<< iSoundBitsPerSample << " bits/sample"
+			<< endl;
+	}
+
+	cout << "Chunk info:   "
+		<< iNumberOfChunks << " chunks, "
+		<< iFramesPerChunk << " frames per chunk, "
+		<< iEvenChunkSize  << " bytes per even chunk, "
+		<< iOddChunkSize   << " bytes per odd chunk"
+		<< endl;
+	cout << "Catalogue at: " << oCatalogueOffset << endl;
+	cout << "Sprite:       offset " << oSpriteOffset << ", " << iSpriteSize << " bytes in length" << endl;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
