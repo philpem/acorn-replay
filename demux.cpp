@@ -110,6 +110,7 @@ E_SOUND_FORMAT decodeSoundFormat(string formatString)
 	int bits;
 
 	// convert format string to upper case
+	str.resize(formatString.size());
 	std::transform(formatString.begin(), formatString.end(), str.begin(), ::toupper);
 
 	// get bits per sample
@@ -154,7 +155,7 @@ class ReplayCatalogue {
 	vector<size_t>		chunkOffsets, videoSizes, soundSizes;
 
 	// load catalogue
-	ReplayCatalogue(istream &is, size_t numChunks)
+	ReplayCatalogue(istream &stream, size_t numChunks)
 	{
 		// TODO implement this
 	}
@@ -175,7 +176,8 @@ class ReplayHeader {
 		E_COLOUR_SPACE	colourSpace;
 		float			fps;
 		uint32_t		iSoundFormat;
-		string			sSoundFormat;
+		string			sCustomSoundFormat;
+		E_SOUND_FORMAT	soundFormat;
 		float			soundSampleRate;
 		uint32_t		iSoundChannels;
 		uint32_t		iSoundBitsPerSample;
@@ -242,7 +244,7 @@ class ReplayHeader {
 			// TODO: decode optional start timecode
 
 			// Sound compression format
-			std::getline(stream, sSoundFormat); TrimSpaces(sSoundFormat); ist.str(sSoundFormat);
+			std::getline(stream, st); TrimSpaces(st); ist.str(st);
 			ist >> iSoundFormat;
 
 			// Sound rate in Hz
@@ -253,9 +255,25 @@ class ReplayHeader {
 			std::getline(stream, st); TrimSpaces(st); ist.str(st);
 			ist >> iSoundChannels;
 
-			// Bits per sound sample
+			// Bits per sound sample and sound format
 			std::getline(stream, st); TrimSpaces(st); ist.str(st);
 			ist >> iSoundBitsPerSample;
+			sCustomSoundFormat = "";
+			if (iSoundFormat == 0) {
+				// Sound Format 0 -- no sound
+				iSoundBitsPerSample = 0;
+				soundFormat = SOUND_NONE;
+			} else if (iSoundFormat == 1) {
+				// Sound Format 1 -- MOVING_LINES decompressor format
+				soundFormat = decodeSoundFormat(st);
+			} else if (iSoundFormat == 2) {
+				// Sound Format 2 -- custom audio stream format
+				sCustomSoundFormat = st.substr(st.find(" ")+1, string::npos);
+				soundFormat = SOUND_CUSTOM;
+			} else {
+				// Unknown sound format (not defined by the Replay spec!)
+				soundFormat = SOUND_UNKNOWN;
+			}
 
 			// Frames per chunk
 			std::getline(stream, st); TrimSpaces(st); ist.str(st);
@@ -342,7 +360,7 @@ void ReplayHeader::dump(void)
 	cout << bpp << " bits per pixel" << endl;
 	cout << fps << " frames per second" << endl;
 	
-	cout << "Sound format: [" << sSoundFormat << "], fmt id " << iSoundFormat << endl;
+	cout << "Sound format: [" << sCustomSoundFormat << "], fmt id " << iSoundFormat << endl;
 	if (iSoundFormat == 0) {
 		cout << "\t<< no audio >>" << endl;
 	} else {
@@ -350,6 +368,26 @@ void ReplayHeader::dump(void)
 			<< iSoundChannels << " channels, "
 			<< iSoundBitsPerSample << " bits/sample"
 			<< endl;
+		if (iSoundFormat == 1) {
+			cout << "\t";
+			switch (soundFormat) {
+				case SOUND_4BIT_ADPCM:
+					cout << "ADPCM" << endl;
+					break;
+				case SOUND_8BIT_LINEAR_SIGNED:
+				case SOUND_16BIT_LINEAR_SIGNED:
+					cout << "Linear signed" << endl;
+					break;
+				case SOUND_8BIT_LINEAR_UNSIGNED:
+					cout << "Linear unsigned" << endl;
+					break;
+				case SOUND_8BIT_ULAW:
+					cout << "mu-Law" << endl;
+					break;
+				default:
+					cout << "\t** Unknown compression format " << iSoundFormat << "!!!" << endl; break;
+			}
+		}
 	}
 
 	cout << "Chunk info:   "
