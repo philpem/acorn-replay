@@ -151,20 +151,48 @@ E_SOUND_FORMAT decodeSoundFormat(string formatString)
 ///////////////////////////////////////////////////////////////////////////////
 
 class ReplayCatalogue {
-
 	vector<size_t>		chunkOffsets, videoSizes, soundSizes;
 
-	// load catalogue
-	ReplayCatalogue(istream &stream, size_t numChunks)
+public:
+	// clear catalogue
+	void clear(void)
 	{
-		// TODO implement this
+		chunkOffsets.clear();
+		videoSizes.clear();
+		soundSizes.clear();
 	}
+
+	// load catalogue
+	// assumes stream is positioned at the start of the catalogue
+	void load(istream &stream, const size_t numChunks)
+	{
+		string st;
+
+		clear();
+
+		for (size_t i=0; i<numChunks+1; i++) {
+			size_t x=99,y=99,z=99;
+			istringstream ist;
+
+			std::getline(stream, st); TrimSpaces(st); ist.clear(); ist.str(st);
+			ist >> x; ist.ignore(st.size(), ',');
+			ist >> y; ist.ignore(st.size(), ';');
+			ist >> z;
+
+			chunkOffsets.push_back(x);
+			videoSizes.push_back(y);
+			soundSizes.push_back(z);
+		}
+	}
+
+	// TODO: size()
+	// TODO: get()
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-class ReplayHeader {
+class ReplayFile {
 	public:
 		string			movieName, copyright, author;
 		uint32_t		iVideoFormat;
@@ -186,13 +214,14 @@ class ReplayHeader {
 		off_t			oCatalogueOffset, oSpriteOffset;
 		size_t			iSpriteSize;
 		ssize_t			iKeyframes;
+		ReplayCatalogue	catalogue;
 
-		ReplayHeader()
+		ReplayFile()
 		{
 			xAspect = yAspect = 1;
 		}
 
-		ReplayHeader(istream &stream)
+		ReplayFile(istream &stream)
 		{
 			string st;
 			istringstream ist;
@@ -311,12 +340,16 @@ class ReplayHeader {
 			} else {
 				iKeyframes = -1;
 			}
+
+			// Now load the catalogue
+			stream.seekg(oCatalogueOffset, ios_base::beg);
+			catalogue.load(stream, iNumberOfChunks);
 		}
 
 		void dump(void);
 };
 
-void ReplayHeader::dump(void)
+void ReplayFile::dump(void)
 {
 	cout << "Movie name:   [" << movieName << "]" << endl;
 	cout << "Copyright:    [" << copyright << "]" << endl;
@@ -415,7 +448,7 @@ int main(int argc, char **argv)
 
 	ifstream moviestream(argv[1], ifstream::in);
 
-	ReplayHeader arh(moviestream);
+	ReplayFile arh(moviestream);
 	arh.dump();
 
 /*
