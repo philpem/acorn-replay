@@ -150,6 +150,9 @@ E_SOUND_FORMAT decodeSoundFormat(string formatString)
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+/**
+ * @brief Encapsulation of an Acorn Replay file's chunk catalogue
+ */
 class ReplayCatalogue {
 	vector<size_t>		chunkOffsets, videoSizes, soundSizes;
 
@@ -187,13 +190,18 @@ public:
 
 	// TODO: size()
 	// TODO: get()
+	// TODO: dump()
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+/**
+ * @brief Encapsulation of an Acorn Replay file.
+ */
 class ReplayFile {
 	public:
+		// TODO: Data hiding here! these should be private and have accessor/mutator methods
 		string			movieName, copyright, author;
 		uint32_t		iVideoFormat;
 		string			sVideoFormat;
@@ -372,7 +380,7 @@ void ReplayFile::dump(void)
 			cout << "Iota Software " << iVideoFormat << endl;
 		else if ((iVideoFormat >= 600) && (iVideoFormat < 700))
 			cout << "Warm Silence Software " << iVideoFormat << endl;
-		else if ((iVideoFormat >= 900) && (iVideoFormat < 800))
+		else if ((iVideoFormat >= 900) && (iVideoFormat < 1000))		// FIXME is this 800-900 or 900-1000?
 			cout << "Innovative Media Solutions " << iVideoFormat << endl;
 		else
 			cout << "Unknown ID " << iVideoFormat << endl;
