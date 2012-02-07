@@ -304,24 +304,34 @@ void ReplayHeader::dump(void)
 	cout << "Copyright:    [" << copyright << "]" << endl;
 	cout << "Author:       [" << author << "]" << endl;
 	cout << "Video format: [" << sVideoFormat << "], fmt id " << iVideoFormat << endl << "\t";
-	if (iVideoFormat < NELEMS(S_VIDEOFORMATS))
-		cout << S_VIDEOFORMATS[iVideoFormat] << endl;
-	else if ((iVideoFormat >= 100) && (iVideoFormat < 200))
-		cout << "EIDOS " << iVideoFormat << endl;
-	else if ((iVideoFormat >= 200) && (iVideoFormat < 300))
-		cout << "Irlam Instruments " << iVideoFormat << endl;
-	else if ((iVideoFormat >= 300) && (iVideoFormat < 400))
-		cout << "Wild Vision " << iVideoFormat << endl;
-	else if ((iVideoFormat >= 400) && (iVideoFormat < 500))
-		cout << "Aspex Software " << iVideoFormat << endl;
-	else if ((iVideoFormat >= 500) && (iVideoFormat < 600))
-		cout << "Iota Software " << iVideoFormat << endl;
-	else if ((iVideoFormat >= 600) && (iVideoFormat < 700))
-		cout << "Warm Silence Software " << iVideoFormat << endl;
-	else if ((iVideoFormat >= 900) && (iVideoFormat < 800))
-		cout << "Innovative Media Solutions " << iVideoFormat << endl;
-	else
-		cout << "Unknown ID " << iVideoFormat << endl;
+	if (iVideoFormat == 0) {
+		cout << "<< no video >>" << endl;
+	} else {
+		if (iVideoFormat < NELEMS(S_VIDEOFORMATS))
+			cout << S_VIDEOFORMATS[iVideoFormat] << endl;
+		else if ((iVideoFormat >= 100) && (iVideoFormat < 200))
+			cout << "EIDOS " << iVideoFormat << endl;
+		else if ((iVideoFormat >= 200) && (iVideoFormat < 300))
+			cout << "Irlam Instruments " << iVideoFormat << endl;
+		else if ((iVideoFormat >= 300) && (iVideoFormat < 400))
+			cout << "Wild Vision " << iVideoFormat << endl;
+		else if ((iVideoFormat >= 400) && (iVideoFormat < 500))
+			cout << "Aspex Software " << iVideoFormat << endl;
+		else if ((iVideoFormat >= 500) && (iVideoFormat < 600))
+			cout << "Iota Software " << iVideoFormat << endl;
+		else if ((iVideoFormat >= 600) && (iVideoFormat < 700))
+			cout << "Warm Silence Software " << iVideoFormat << endl;
+		else if ((iVideoFormat >= 900) && (iVideoFormat < 800))
+			cout << "Innovative Media Solutions " << iVideoFormat << endl;
+		else
+			cout << "Unknown ID " << iVideoFormat << endl;
+
+		switch (colourSpace) {
+			case COLOURSPACE_RGB:	cout << "\tColour space: RGB" << endl; break;
+			case COLOURSPACE_YUV:	cout << "\tColour space: YUV" << endl; break;
+			default:				cout << "\t** Unknown or unspecified colour space **" << endl; break;
+		}
+	}
 
 	if (videoFormatParams.size() > 0) {
 		// TODO: print format parameters
