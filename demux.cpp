@@ -16,10 +16,10 @@ using namespace std;
 #define NELEMS(x) (sizeof(x)/sizeof(x[0]))
 
 // generic accessor and mutator methods
-#define ROVAR(name, type) \
+#define ROVAR(type, name) \
 	type name() { return _##name; }
 
-#define RWVAR(name, type) \
+#define RWVAR(type, name) \
 	type name() { return _##name; }			\
 	void name(type val) { _##name = val; }
 
@@ -123,24 +123,25 @@ typedef enum {
  * @brief Encapsulation of an Acorn Replay file's chunk catalogue
  */
 class ReplayCatalogue {
-	vector<size_t>		chunkOffsets, videoSizes, soundSizes;
+	private:
+		vector<size_t>		chunkOffsets, videoSizes, soundSizes;
 
-public:
-	/**
-	 * Clear the catalogue.
-	 */
-	void clear();
+	public:
+		/**
+		 * Clear the catalogue.
+		 */
+		void clear();
 
-	/**
-	 * Load catalogue.
-	 *
-	 * Assumes the stream is positioned at the start of the catalogue block.
-	 */
-	void load(istream &stream, const size_t numChunks);
+		/**
+		 * Load catalogue.
+		 *
+		 * Assumes the stream is positioned at the start of the catalogue block.
+		 */
+		void load(istream &stream, const size_t numChunks);
 
-	// TODO: size()
-	// TODO: get()
-	// TODO: dump()
+		// TODO: size()
+		// TODO: get()
+		// TODO: dump()
 };
 
 void ReplayCatalogue::clear()
@@ -185,31 +186,35 @@ void ReplayCatalogue::load(istream &stream, const size_t numChunks)
  */
 class ReplayFile {
 	private:
-		string			movieName, copyright, author;
-		uint32_t		iVideoFormat;
-		string			sVideoFormat;
-		vector<string>	videoFormatParams;
-		uint32_t		xSize, ySize;
-		float			xAspect, yAspect;
-		uint32_t		bpp;
-		E_COLOUR_SPACE	colourSpace;
-		float			fps;
-		uint32_t		iSoundFormat;
-		string			sCustomSoundFormat;
-		E_SOUND_FORMAT	soundFormat;
-		float			soundSampleRate;
-		uint32_t		iSoundChannels;
-		uint32_t		iSoundBitsPerSample;
-		uint32_t		iFramesPerChunk;
-		size_t			iNumberOfChunks, iEvenChunkSize, iOddChunkSize;
-		off_t			oCatalogueOffset, oSpriteOffset;
-		size_t			iSpriteSize;
-		ssize_t			iKeyframes;
+		string			_movieName, _copyright, _author;
+		uint32_t		_iVideoFormat;
+		string			_sVideoFormat;
+		vector<string>	_videoFormatParams;
+		uint32_t		_xSize, _ySize;
+		float			_xAspect, _yAspect;
+		uint32_t		_bpp;
+		E_COLOUR_SPACE	_colourSpace;
+		float			_fps;
+		uint32_t		_iSoundFormat;
+		string			_sCustomSoundFormat;
+		E_SOUND_FORMAT	_soundFormat;
+		float			_soundSampleRate;
+		uint32_t		_iSoundChannels;
+		uint32_t		_iSoundBitsPerSample;
+		uint32_t		_iFramesPerChunk;
+		size_t			_iNumberOfChunks, _iEvenChunkSize, _iOddChunkSize;
+		off_t			_oCatalogueOffset, _oSpriteOffset;
+		size_t			_iSpriteSize;
+		ssize_t			_iKeyframes;
 		ReplayCatalogue	catalogue;
 
 		E_SOUND_FORMAT decodeSoundFormat(string formatString);
 
 	public:
+		ROVAR(string, movieName);
+		ROVAR(string, copyright);
+		ROVAR(string, author);
+
 		ReplayFile();
 		ReplayFile(istream &stream);
 		void dump(void);
@@ -222,7 +227,7 @@ class ReplayFile {
  */
 ReplayFile::ReplayFile()
 {
-	xAspect = yAspect = 1;
+	_xAspect = _yAspect = 1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -242,176 +247,176 @@ ReplayFile::ReplayFile(istream &stream)
 		throw ENotAReplayMovie();
 	}
 
-	xAspect = yAspect = 1;
+	_xAspect = _yAspect = 1;
 
 	// movie information
-	std::getline(stream, movieName);	TrimSpaces(movieName);
-	std::getline(stream, copyright);	TrimSpaces(copyright);
-	std::getline(stream, author);		TrimSpaces(author);
+	std::getline(stream, _movieName);	TrimSpaces(_movieName);
+	std::getline(stream, _copyright);	TrimSpaces(_copyright);
+	std::getline(stream, _author);		TrimSpaces(_author);
 
 	// video compression format
-	std::getline(stream, sVideoFormat); TrimSpaces(sVideoFormat); ist.str(sVideoFormat);
-	ist >> iVideoFormat;
+	std::getline(stream, _sVideoFormat); TrimSpaces(_sVideoFormat); ist.str(_sVideoFormat);
+	ist >> _iVideoFormat;
 	// TODO: decode the compression format parameter list
 
 	// X size in pixels
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> xSize;
+	ist >> _xSize;
 	// TODO: decode optional aspect ratio
 
 	// Y size in pixels
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> ySize;
+	ist >> _ySize;
 
 	// Pixel depth in bits
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> bpp;
+	ist >> _bpp;
 	// This line also encodes the colour space type (YUV or RGB)
 	std::transform(st.begin(), st.end(), st.begin(), ::toupper);
 	if (st.find("YUV") != string::npos) {
-		colourSpace = COLOURSPACE_YUV;
+		_colourSpace = COLOURSPACE_YUV;
 	} else if (st.find("RGB") != string::npos) {
-		colourSpace = COLOURSPACE_RGB;
+		_colourSpace = COLOURSPACE_RGB;
 	} else {
-		colourSpace = COLOURSPACE_UNKNOWN;
+		_colourSpace = COLOURSPACE_UNKNOWN;
 	}
 
 	// Number of frames per second
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> fps;
+	ist >> _fps;
 	// TODO: decode optional start timecode
 
 	// Sound compression format
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> iSoundFormat;
+	ist >> _iSoundFormat;
 
 	// Sound rate in Hz
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> soundSampleRate;
+	ist >> _soundSampleRate;
 
 	// Number of audio channels
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> iSoundChannels;
+	ist >> _iSoundChannels;
 
 	// Bits per sound sample and sound format
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> iSoundBitsPerSample;
-	sCustomSoundFormat = "";
-	if (iSoundFormat == 0) {
+	ist >> _iSoundBitsPerSample;
+	_sCustomSoundFormat = "";
+	if (_iSoundFormat == 0) {
 		// Sound Format 0 -- no sound
-		iSoundBitsPerSample = 0;
-		soundFormat = SOUND_NONE;
-	} else if (iSoundFormat == 1) {
+		_iSoundBitsPerSample = 0;
+		_soundFormat = SOUND_NONE;
+	} else if (_iSoundFormat == 1) {
 		// Sound Format 1 -- MOVING_LINES decompressor format
-		soundFormat = decodeSoundFormat(st);
-	} else if (iSoundFormat == 2) {
+		_soundFormat = decodeSoundFormat(st);
+	} else if (_iSoundFormat == 2) {
 		// Sound Format 2 -- custom audio stream format
-		sCustomSoundFormat = st.substr(st.find(" ")+1, string::npos);
-		soundFormat = SOUND_CUSTOM;
+		_sCustomSoundFormat = st.substr(st.find(" ")+1, string::npos);
+		_soundFormat = SOUND_CUSTOM;
 	} else {
 		// Unknown sound format (not defined by the Replay spec!)
-		soundFormat = SOUND_UNKNOWN;
+		_soundFormat = SOUND_UNKNOWN;
 	}
 
 	// Frames per chunk
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> iFramesPerChunk;
+	ist >> _iFramesPerChunk;
 
 	// Chunk count
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> iNumberOfChunks;
+	ist >> _iNumberOfChunks;
 
 	// Even chunk size
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> iEvenChunkSize;
+	ist >> _iEvenChunkSize;
 
 	// Odd chunk size
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> iOddChunkSize;
+	ist >> _iOddChunkSize;
 
 	// Catalogue offset
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> oCatalogueOffset;
+	ist >> _oCatalogueOffset;
 
 	// Offset to sprite
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> oSpriteOffset;
+	ist >> _oSpriteOffset;
 
 	// Size of sprite
 	std::getline(stream, st); TrimSpaces(st); ist.str(st);
-	ist >> iSpriteSize;
+	ist >> _iSpriteSize;
 
 	// Keyframe position (ONLY FOR VIDEO!)
 	// Set to -1 for "no keys"
-	if (iVideoFormat != 0) {
+	if (_iVideoFormat != 0) {
 		std::getline(stream, st); TrimSpaces(st); ist.str(st);
-		ist >> iKeyframes;
+		ist >> _iKeyframes;
 	} else {
-		iKeyframes = -1;
+		_iKeyframes = -1;
 	}
 
 	// Now load the catalogue
-	stream.seekg(oCatalogueOffset, ios_base::beg);
-	catalogue.load(stream, iNumberOfChunks);
+	stream.seekg(_oCatalogueOffset, ios_base::beg);
+	catalogue.load(stream, _iNumberOfChunks);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 void ReplayFile::dump(void)
 {
-	cout << "Movie name:   [" << movieName << "]" << endl;
-	cout << "Copyright:    [" << copyright << "]" << endl;
-	cout << "Author:       [" << author << "]" << endl;
-	cout << "Video format: [" << sVideoFormat << "], fmt id " << iVideoFormat << endl << "\t";
-	if (iVideoFormat == 0) {
+	cout << "Movie name:   [" << _movieName << "]" << endl;
+	cout << "Copyright:    [" << _copyright << "]" << endl;
+	cout << "Author:       [" << _author << "]" << endl;
+	cout << "Video format: [" << _sVideoFormat << "], fmt id " << _iVideoFormat << endl << "\t";
+	if (_iVideoFormat == 0) {
 		cout << "<< no video >>" << endl;
 	} else {
-		if (iVideoFormat < NELEMS(S_VIDEOFORMATS))
-			cout << S_VIDEOFORMATS[iVideoFormat] << endl;
-		else if ((iVideoFormat >= 100) && (iVideoFormat < 200))
-			cout << "EIDOS " << iVideoFormat << endl;
-		else if ((iVideoFormat >= 200) && (iVideoFormat < 300))
-			cout << "Irlam Instruments " << iVideoFormat << endl;
-		else if ((iVideoFormat >= 300) && (iVideoFormat < 400))
-			cout << "Wild Vision " << iVideoFormat << endl;
-		else if ((iVideoFormat >= 400) && (iVideoFormat < 500))
-			cout << "Aspex Software " << iVideoFormat << endl;
-		else if ((iVideoFormat >= 500) && (iVideoFormat < 600))
-			cout << "Iota Software " << iVideoFormat << endl;
-		else if ((iVideoFormat >= 600) && (iVideoFormat < 700))
-			cout << "Warm Silence Software " << iVideoFormat << endl;
-		else if ((iVideoFormat >= 900) && (iVideoFormat < 1000))		// FIXME is this 800-900 or 900-1000?
-			cout << "Innovative Media Solutions " << iVideoFormat << endl;
+		if (_iVideoFormat < NELEMS(S_VIDEOFORMATS))
+			cout << S_VIDEOFORMATS[_iVideoFormat] << endl;
+		else if ((_iVideoFormat >= 100) && (_iVideoFormat < 200))
+			cout << "EIDOS "					<< _iVideoFormat << endl;
+		else if ((_iVideoFormat >= 200) && (_iVideoFormat < 300))
+			cout << "Irlam Instruments "		<< _iVideoFormat << endl;
+		else if ((_iVideoFormat >= 300) && (_iVideoFormat < 400))
+			cout << "Wild Vision "				<< _iVideoFormat << endl;
+		else if ((_iVideoFormat >= 400) && (_iVideoFormat < 500))
+			cout << "Aspex Software "			<< _iVideoFormat << endl;
+		else if ((_iVideoFormat >= 500) && (_iVideoFormat < 600))
+			cout << "Iota Software "			<< _iVideoFormat << endl;
+		else if ((_iVideoFormat >= 600) && (_iVideoFormat < 700))
+			cout << "Warm Silence Software "	<< _iVideoFormat << endl;
+		else if ((_iVideoFormat >= 900) && (_iVideoFormat < 1000))		// FIXME is this 800-900 or 900-1000?
+			cout << "Innovative Media Solutions " << _iVideoFormat << endl;
 		else
-			cout << "Unknown ID " << iVideoFormat << endl;
+			cout << "Unknown ID " << _iVideoFormat << endl;
 
-		switch (colourSpace) {
+		switch (_colourSpace) {
 			case COLOURSPACE_RGB:	cout << "\tColour space: RGB" << endl; break;
 			case COLOURSPACE_YUV:	cout << "\tColour space: YUV" << endl; break;
 			default:				cout << "\t** Unknown or unspecified colour space **" << endl; break;
 		}
 	}
 
-	if (videoFormatParams.size() > 0) {
+	if (_videoFormatParams.size() > 0) {
 		// TODO: print format parameters
 		cout << "\t" << "Have format parameters..." << endl;
 	}
-	cout << "Pixel size:   " << xSize << " * " << ySize << endl;
-	cout << "Pixel aspect: " << xAspect << " : " << yAspect << endl;
-	cout << bpp << " bits per pixel" << endl;
-	cout << fps << " frames per second" << endl;
+	cout << "Pixel size:   " << _xSize << " * " << _ySize << endl;
+	cout << "Pixel aspect: " << _xAspect << " : " << _yAspect << endl;
+	cout << _bpp << " bits per pixel" << endl;
+	cout << _fps << " frames per second" << endl;
 	
-	cout << "Sound format: [" << sCustomSoundFormat << "], fmt id " << iSoundFormat << endl;
-	if (iSoundFormat == 0) {
+	cout << "Sound format: [" << _sCustomSoundFormat << "], fmt id " << _iSoundFormat << endl;
+	if (_iSoundFormat == 0) {
 		cout << "\t<< no audio >>" << endl;
 	} else {
-		cout << "Sound:        " << soundSampleRate << " Hz, "
-			<< iSoundChannels << " channels, "
-			<< iSoundBitsPerSample << " bits/sample"
+		cout << "Sound:        " << _soundSampleRate << " Hz, "
+			<< _iSoundChannels << " channels, "
+			<< _iSoundBitsPerSample << " bits/sample"
 			<< endl;
-		if (iSoundFormat == 1) {
+		if (_iSoundFormat == 1) {
 			cout << "\t";
-			switch (soundFormat) {
+			switch (_soundFormat) {
 				case SOUND_4BIT_ADPCM:
 					cout << "ADPCM" << endl;
 					break;
@@ -426,19 +431,19 @@ void ReplayFile::dump(void)
 					cout << "mu-Law" << endl;
 					break;
 				default:
-					cout << "\t** Unknown compression format " << iSoundFormat << "!!!" << endl; break;
+					cout << "\t** Unknown compression format " << _iSoundFormat << "!!!" << endl; break;
 			}
 		}
 	}
 
 	cout << "Chunk info:   "
-		<< iNumberOfChunks << " chunks, "
-		<< iFramesPerChunk << " frames per chunk, "
-		<< iEvenChunkSize  << " bytes per even chunk, "
-		<< iOddChunkSize   << " bytes per odd chunk"
+		<< _iNumberOfChunks << " chunks, "
+		<< _iFramesPerChunk << " frames per chunk, "
+		<< _iEvenChunkSize  << " bytes per even chunk, "
+		<< _iOddChunkSize   << " bytes per odd chunk"
 		<< endl;
-	cout << "Catalogue at: " << oCatalogueOffset << endl;
-	cout << "Sprite:       offset " << oSpriteOffset << ", " << iSpriteSize << " bytes in length" << endl;
+	cout << "Catalogue at: " << _oCatalogueOffset << endl;
+	cout << "Sprite:       offset " << _oSpriteOffset << ", " << _iSpriteSize << " bytes in length" << endl;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
