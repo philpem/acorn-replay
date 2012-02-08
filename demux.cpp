@@ -17,10 +17,10 @@ using namespace std;
 
 // generic accessor and mutator methods
 #define ROVAR(type, name) \
-	const type name() { return _##name; }
+	const type name() const { return _##name; }
 
 #define RWVAR(type, name) \
-	const type name() { return _##name; }			\
+	const type name() const { return _##name; }			\
 	void name(type val) { _##name = val; }
 
 ///////////////////////////////////////////////////////////////////////////////
