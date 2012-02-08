@@ -15,11 +15,19 @@ using namespace std;
 // get number of elements in an array
 #define NELEMS(x) (sizeof(x)/sizeof(x[0]))
 
+// generic accessor and mutator methods
+#define ROVAR(name, type) \
+	type name() { return _##name; }
+
+#define RWVAR(name, type) \
+	type name() { return _##name; }			\
+	void name(type val) { _##name = val; }
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 // trim spaces from a string
-void TrimSpaces(string &str)
+static void TrimSpaces(string &str)
 {
 	// Trim Both leading and trailing spaces
 	size_t startpos = str.find_first_not_of(" \t"); // Find the first character position after excluding leading blank spaces
@@ -44,6 +52,9 @@ class ENotAReplayMovie : public exception {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+/**
+ * @brief Standard video formats supported by Replay.
+ */
 const char * S_VIDEOFORMATS[] = {
 	"<< no video >>",
 	"Moving Lines",
@@ -73,9 +84,15 @@ const char * S_VIDEOFORMATS[] = {
 	"6bpp YYYYd4UVd4 chroma H/V subsampled by 2"
 };
 
-// There are five different Replay sound formats under SoundFormat 1, plus
-// the Custom sound format (SoundFormat 2).
-// All SF1 formats support both Mono and Stereo.
+/**
+ * @brief Sound formats supported by Replay.
+ *
+ * There are five different Replay sound formats under SoundFormat 1, plus
+ * the Custom sound format (SoundFormat 2) which specifies the name of an
+ * external CODEC.
+ *
+ * All SF1 formats support both Mono and Stereo.
+ */
 typedef enum {
 	SOUND_4BIT_ADPCM,				// ADPCM, 4-bit, either mono or stereo
 	SOUND_8BIT_LINEAR_SIGNED,		// 8-bit Linear, Signed
@@ -87,65 +104,17 @@ typedef enum {
 	SOUND_UNKNOWN,					// No idea what type of audio track, or something invalid
 } E_SOUND_FORMAT;
 
-// Replay supports YUV and RGB colour
+/**
+ * @brief Colour spaces supported by Replay.
+ *
+ * Replay supports YUV and RGB colour. Unknown is an option if we couldn't
+ * decode the colour space identifier.
+ */
 typedef enum {
 	COLOURSPACE_RGB,
 	COLOURSPACE_YUV,
 	COLOURSPACE_UNKNOWN
 } E_COLOUR_SPACE;
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-/**
- * @brief Decode a sound format string (the bits-per-sample string)
- *
- * @param formatString	Sound format / bits per sample string
- * @returns an E_SOUND_FORMAT tag representing the audio format.
- */
-E_SOUND_FORMAT decodeSoundFormat(string formatString)
-{
-	string str;
-	istringstream ist;
-	int bits;
-
-	// convert format string to upper case
-	str.resize(formatString.size());
-	std::transform(formatString.begin(), formatString.end(), str.begin(), ::toupper);
-
-	// get bits per sample
-	ist.str(formatString);
-	ist >> bits;
-
-	// 0 bits means no sound!
-	if (bits == 0) return SOUND_NONE;
-
-	// check for linear, ADPCM or exponential
-	if (str.find("LIN") != string::npos) {
-		// Linear -- check for signedness
-		if (str.find("UNSIGN") != string::npos) {
-			// Linear unsigned
-			switch (bits) {
-				case 8:  return SOUND_8BIT_LINEAR_UNSIGNED;
-				case 16:    // 16 Linear Unsigned is not valid per the Acorn Replay spec!
-				default: return SOUND_UNKNOWN;
-			}
-		} else {
-			// Linear signed
-			switch (bits) {
-				case 8:  return SOUND_8BIT_LINEAR_SIGNED;
-				case 16: return SOUND_16BIT_LINEAR_SIGNED;
-				default: return SOUND_UNKNOWN;
-			}
-		}
-	} else if ((bits == 4) || (str.find("ADPCM") != string::npos)) {
-		// 4-bit Linear ADPCM
-		return SOUND_4BIT_ADPCM;
-	} else {
-		// must be 8-bit Exponential mu-Law / u-Law then...
-		return SOUND_8BIT_ULAW;
-	}
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -157,41 +126,56 @@ class ReplayCatalogue {
 	vector<size_t>		chunkOffsets, videoSizes, soundSizes;
 
 public:
-	// clear catalogue
-	void clear(void)
-	{
-		chunkOffsets.clear();
-		videoSizes.clear();
-		soundSizes.clear();
-	}
+	/**
+	 * Clear the catalogue.
+	 */
+	void clear();
 
-	// load catalogue
-	// assumes stream is positioned at the start of the catalogue
-	void load(istream &stream, const size_t numChunks)
-	{
-		string st;
-
-		clear();
-
-		for (size_t i=0; i<numChunks+1; i++) {
-			size_t x=99,y=99,z=99;
-			istringstream ist;
-
-			std::getline(stream, st); TrimSpaces(st); ist.clear(); ist.str(st);
-			ist >> x; ist.ignore(st.size(), ',');
-			ist >> y; ist.ignore(st.size(), ';');
-			ist >> z;
-
-			chunkOffsets.push_back(x);
-			videoSizes.push_back(y);
-			soundSizes.push_back(z);
-		}
-	}
+	/**
+	 * Load catalogue.
+	 *
+	 * Assumes the stream is positioned at the start of the catalogue block.
+	 */
+	void load(istream &stream, const size_t numChunks);
 
 	// TODO: size()
 	// TODO: get()
 	// TODO: dump()
 };
+
+void ReplayCatalogue::clear()
+{
+	chunkOffsets.clear();
+	videoSizes.clear();
+	soundSizes.clear();
+}
+
+void ReplayCatalogue::load(istream &stream, const size_t numChunks)
+{
+	string st;
+
+	// We're loading new data; clear any existing catalogue data
+	clear();
+
+	// Load all the catalogue chunks...
+	for (size_t i=0; i<numChunks+1; i++) {
+		size_t x,y,z;
+		istringstream ist;
+
+		// Get a line, trim the spaces and pull it into the string stream
+		std::getline(stream, st); TrimSpaces(st); ist.clear(); ist.str(st);
+
+		// Get the chunk offset, video size and sound size
+		ist >> x; ist.ignore(st.size(), ',');
+		ist >> y; ist.ignore(st.size(), ';');
+		ist >> z;
+
+		// Store the chunk offset and size
+		chunkOffsets.push_back(x);
+		videoSizes.push_back(y);
+		soundSizes.push_back(z);
+	}
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -200,8 +184,7 @@ public:
  * @brief Encapsulation of an Acorn Replay file.
  */
 class ReplayFile {
-	public:
-		// TODO: Data hiding here! these should be private and have accessor/mutator methods
+	private:
 		string			movieName, copyright, author;
 		uint32_t		iVideoFormat;
 		string			sVideoFormat;
@@ -224,138 +207,155 @@ class ReplayFile {
 		ssize_t			iKeyframes;
 		ReplayCatalogue	catalogue;
 
-		ReplayFile()
-		{
-			xAspect = yAspect = 1;
-		}
+		E_SOUND_FORMAT decodeSoundFormat(string formatString);
 
-		ReplayFile(istream &stream)
-		{
-			string st;
-			istringstream ist;
-
-			// Line 1: ARMovie [fixed]
-			getline(stream, st);
-			TrimSpaces(st);
-			if (st.compare("ARMovie") != 0) {
-				throw ENotAReplayMovie();
-			}
-
-			xAspect = yAspect = 1;
-
-			// movie information
-			std::getline(stream, movieName);	TrimSpaces(movieName);
-			std::getline(stream, copyright);	TrimSpaces(copyright);
-			std::getline(stream, author);		TrimSpaces(author);
-
-			// video compression format
-			std::getline(stream, sVideoFormat); TrimSpaces(sVideoFormat); ist.str(sVideoFormat);
-			ist >> iVideoFormat;
-			// TODO: decode the compression format parameter list
-
-			// X size in pixels
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> xSize;
-			// TODO: decode optional aspect ratio
-
-			// Y size in pixels
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> ySize;
-
-			// Pixel depth in bits
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> bpp;
-			// This line also encodes the colour space type (YUV or RGB)
-			std::transform(st.begin(), st.end(), st.begin(), ::toupper);
-			if (st.find("YUV") != string::npos) {
-				colourSpace = COLOURSPACE_YUV;
-			} else if (st.find("RGB") != string::npos) {
-				colourSpace = COLOURSPACE_RGB;
-			} else {
-				colourSpace = COLOURSPACE_UNKNOWN;
-			}
-
-			// Number of frames per second
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> fps;
-			// TODO: decode optional start timecode
-
-			// Sound compression format
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> iSoundFormat;
-
-			// Sound rate in Hz
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> soundSampleRate;
-
-			// Number of audio channels
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> iSoundChannels;
-
-			// Bits per sound sample and sound format
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> iSoundBitsPerSample;
-			sCustomSoundFormat = "";
-			if (iSoundFormat == 0) {
-				// Sound Format 0 -- no sound
-				iSoundBitsPerSample = 0;
-				soundFormat = SOUND_NONE;
-			} else if (iSoundFormat == 1) {
-				// Sound Format 1 -- MOVING_LINES decompressor format
-				soundFormat = decodeSoundFormat(st);
-			} else if (iSoundFormat == 2) {
-				// Sound Format 2 -- custom audio stream format
-				sCustomSoundFormat = st.substr(st.find(" ")+1, string::npos);
-				soundFormat = SOUND_CUSTOM;
-			} else {
-				// Unknown sound format (not defined by the Replay spec!)
-				soundFormat = SOUND_UNKNOWN;
-			}
-
-			// Frames per chunk
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> iFramesPerChunk;
-
-			// Chunk count
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> iNumberOfChunks;
-
-			// Even chunk size
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> iEvenChunkSize;
-
-			// Odd chunk size
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> iOddChunkSize;
-
-			// Catalogue offset
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> oCatalogueOffset;
-
-			// Offset to sprite
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> oSpriteOffset;
-
-			// Size of sprite
-			std::getline(stream, st); TrimSpaces(st); ist.str(st);
-			ist >> iSpriteSize;
-
-			// Keyframe position (ONLY FOR VIDEO!)
-			// Set to -1 for "no keys"
-			if (iVideoFormat != 0) {
-				std::getline(stream, st); TrimSpaces(st); ist.str(st);
-				ist >> iKeyframes;
-			} else {
-				iKeyframes = -1;
-			}
-
-			// Now load the catalogue
-			stream.seekg(oCatalogueOffset, ios_base::beg);
-			catalogue.load(stream, iNumberOfChunks);
-		}
-
+	public:
+		ReplayFile();
+		ReplayFile(istream &stream);
 		void dump(void);
 };
+
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief Constructor: empty ReplayFile
+ */
+ReplayFile::ReplayFile()
+{
+	xAspect = yAspect = 1;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief Constructor: load a ReplayFile from a stream
+ */
+ReplayFile::ReplayFile(istream &stream)
+{
+	string st;
+	istringstream ist;
+
+	// Line 1: ARMovie [fixed]
+	getline(stream, st);
+	TrimSpaces(st);
+	if (st.compare("ARMovie") != 0) {
+		throw ENotAReplayMovie();
+	}
+
+	xAspect = yAspect = 1;
+
+	// movie information
+	std::getline(stream, movieName);	TrimSpaces(movieName);
+	std::getline(stream, copyright);	TrimSpaces(copyright);
+	std::getline(stream, author);		TrimSpaces(author);
+
+	// video compression format
+	std::getline(stream, sVideoFormat); TrimSpaces(sVideoFormat); ist.str(sVideoFormat);
+	ist >> iVideoFormat;
+	// TODO: decode the compression format parameter list
+
+	// X size in pixels
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> xSize;
+	// TODO: decode optional aspect ratio
+
+	// Y size in pixels
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> ySize;
+
+	// Pixel depth in bits
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> bpp;
+	// This line also encodes the colour space type (YUV or RGB)
+	std::transform(st.begin(), st.end(), st.begin(), ::toupper);
+	if (st.find("YUV") != string::npos) {
+		colourSpace = COLOURSPACE_YUV;
+	} else if (st.find("RGB") != string::npos) {
+		colourSpace = COLOURSPACE_RGB;
+	} else {
+		colourSpace = COLOURSPACE_UNKNOWN;
+	}
+
+	// Number of frames per second
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> fps;
+	// TODO: decode optional start timecode
+
+	// Sound compression format
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> iSoundFormat;
+
+	// Sound rate in Hz
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> soundSampleRate;
+
+	// Number of audio channels
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> iSoundChannels;
+
+	// Bits per sound sample and sound format
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> iSoundBitsPerSample;
+	sCustomSoundFormat = "";
+	if (iSoundFormat == 0) {
+		// Sound Format 0 -- no sound
+		iSoundBitsPerSample = 0;
+		soundFormat = SOUND_NONE;
+	} else if (iSoundFormat == 1) {
+		// Sound Format 1 -- MOVING_LINES decompressor format
+		soundFormat = decodeSoundFormat(st);
+	} else if (iSoundFormat == 2) {
+		// Sound Format 2 -- custom audio stream format
+		sCustomSoundFormat = st.substr(st.find(" ")+1, string::npos);
+		soundFormat = SOUND_CUSTOM;
+	} else {
+		// Unknown sound format (not defined by the Replay spec!)
+		soundFormat = SOUND_UNKNOWN;
+	}
+
+	// Frames per chunk
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> iFramesPerChunk;
+
+	// Chunk count
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> iNumberOfChunks;
+
+	// Even chunk size
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> iEvenChunkSize;
+
+	// Odd chunk size
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> iOddChunkSize;
+
+	// Catalogue offset
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> oCatalogueOffset;
+
+	// Offset to sprite
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> oSpriteOffset;
+
+	// Size of sprite
+	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	ist >> iSpriteSize;
+
+	// Keyframe position (ONLY FOR VIDEO!)
+	// Set to -1 for "no keys"
+	if (iVideoFormat != 0) {
+		std::getline(stream, st); TrimSpaces(st); ist.str(st);
+		ist >> iKeyframes;
+	} else {
+		iKeyframes = -1;
+	}
+
+	// Now load the catalogue
+	stream.seekg(oCatalogueOffset, ios_base::beg);
+	catalogue.load(stream, iNumberOfChunks);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 void ReplayFile::dump(void)
 {
@@ -439,6 +439,58 @@ void ReplayFile::dump(void)
 		<< endl;
 	cout << "Catalogue at: " << oCatalogueOffset << endl;
 	cout << "Sprite:       offset " << oSpriteOffset << ", " << iSpriteSize << " bytes in length" << endl;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief Decode a sound format string (the bits-per-sample string)
+ *
+ * @param formatString	Sound format / bits per sample string
+ * @returns an E_SOUND_FORMAT tag representing the audio format.
+ */
+E_SOUND_FORMAT ReplayFile::decodeSoundFormat(string formatString)
+{
+	string str;
+	istringstream ist;
+	int bits;
+
+	// convert format string to upper case
+	str.resize(formatString.size());
+	std::transform(formatString.begin(), formatString.end(), str.begin(), ::toupper);
+
+	// get bits per sample
+	ist.str(formatString);
+	ist >> bits;
+
+	// 0 bits means no sound!
+	if (bits == 0) return SOUND_NONE;
+
+	// check for linear, ADPCM or exponential
+	if (str.find("LIN") != string::npos) {
+		// Linear -- check for signedness
+		if (str.find("UNSIGN") != string::npos) {
+			// Linear unsigned
+			switch (bits) {
+				case 8:  return SOUND_8BIT_LINEAR_UNSIGNED;
+				case 16:    // 16 Linear Unsigned is not valid per the Acorn Replay spec!
+				default: return SOUND_UNKNOWN;
+			}
+		} else {
+			// Linear signed
+			switch (bits) {
+				case 8:  return SOUND_8BIT_LINEAR_SIGNED;
+				case 16: return SOUND_16BIT_LINEAR_SIGNED;
+				default: return SOUND_UNKNOWN;
+			}
+		}
+	} else if ((bits == 4) || (str.find("ADPCM") != string::npos)) {
+		// 4-bit Linear ADPCM
+		return SOUND_4BIT_ADPCM;
+	} else {
+		// must be 8-bit Exponential mu-Law / u-Law then...
+		return SOUND_8BIT_ULAW;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
