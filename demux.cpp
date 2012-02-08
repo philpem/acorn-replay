@@ -143,7 +143,7 @@ class ReplayCatalogue {
 		/**
 		 * Get catalogue size
 		 */
-		const size_t size()
+		const size_t size() const
 		{
 			return chunkOffsets.size();
 		}
@@ -151,7 +151,7 @@ class ReplayCatalogue {
 		/**
 		 * Get a catalogue entry
 		 */
-		const void get(size_t index, size_t *chunkOffset, size_t *videoSize, size_t *soundSize)
+		const void get(size_t index, size_t *chunkOffset, size_t *videoSize, size_t *soundSize) const
 		{
 			// TODO: Range Check
 			if (chunkOffset)
@@ -167,18 +167,16 @@ class ReplayCatalogue {
 		 *
 		 * TODO: Allow other streams to be used.
 		 */
-		const void dump()
+		const void dump() const
 		{
 			cout << "Catalogue entries: " << size() << endl;
-			cout << "ChunkOfs\tVideoSz\tSoundSz" << endl;
+			cout << "ChunkOf\tVideoSz\tSoundSz" << endl;
 			for (size_t i=0; i<size(); i++) {
 				cout << chunkOffsets[i] << "\t"
 					<< videoSizes[i] << "\t"
 					<< soundSizes[i] << endl;
 			}
 		}
-
-		// TODO: dump()
 };
 
 void ReplayCatalogue::clear()
@@ -502,6 +500,9 @@ void ReplayFile::dump(void)
 		<< endl;
 	cout << "Catalogue at: " << _oCatalogueOffset << endl;
 	cout << "Sprite:       offset " << _oSpriteOffset << ", " << _iSpriteSize << " bytes in length" << endl;
+	cout << endl;
+
+	catalogue().dump();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
