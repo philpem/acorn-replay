@@ -17,10 +17,10 @@ using namespace std;
 
 // generic accessor and mutator methods
 #define ROVAR(type, name) \
-	type name() { return _##name; }
+	const type name() { return _##name; }
 
 #define RWVAR(type, name) \
-	type name() { return _##name; }			\
+	const type name() { return _##name; }			\
 	void name(type val) { _##name = val; }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -124,6 +124,7 @@ typedef enum {
  */
 class ReplayCatalogue {
 	private:
+		// TODO: should be a vector of a struct which contains all three...
 		vector<size_t>		chunkOffsets, videoSizes, soundSizes;
 
 	public:
@@ -139,8 +140,44 @@ class ReplayCatalogue {
 		 */
 		void load(istream &stream, const size_t numChunks);
 
-		// TODO: size()
-		// TODO: get()
+		/**
+		 * Get catalogue size
+		 */
+		const size_t size()
+		{
+			return chunkOffsets.size();
+		}
+
+		/**
+		 * Get a catalogue entry
+		 */
+		const void get(size_t index, size_t *chunkOffset, size_t *videoSize, size_t *soundSize)
+		{
+			// TODO: Range Check
+			if (chunkOffset)
+				*chunkOffset = chunkOffsets[index];
+			if (videoSize)
+				*videoSize = videoSizes[index];
+			if (soundSize)
+				*soundSize = soundSizes[index];
+		}
+
+		/**
+		 * Dump the catalogue to stdout.
+		 *
+		 * TODO: Allow other streams to be used.
+		 */
+		const void dump()
+		{
+			cout << "Catalogue entries: " << size() << endl;
+			cout << "ChunkOfs\tVideoSz\tSoundSz" << endl;
+			for (size_t i=0; i<size(); i++) {
+				cout << chunkOffsets[i] << "\t"
+					<< videoSizes[i] << "\t"
+					<< soundSizes[i] << endl;
+			}
+		}
+
 		// TODO: dump()
 };
 
@@ -206,14 +243,35 @@ class ReplayFile {
 		off_t			_oCatalogueOffset, _oSpriteOffset;
 		size_t			_iSpriteSize;
 		ssize_t			_iKeyframes;
-		ReplayCatalogue	catalogue;
+		ReplayCatalogue	_catalogue;
 
 		E_SOUND_FORMAT decodeSoundFormat(string formatString);
 
 	public:
-		ROVAR(string, movieName);
-		ROVAR(string, copyright);
-		ROVAR(string, author);
+		ROVAR(string,			movieName);				///< Movie name
+		ROVAR(string,			copyright);				///< Copyright
+		ROVAR(string,			author);				///< Author
+		ROVAR(uint32_t,			iVideoFormat);			///< Video format ID
+		ROVAR(string,			sVideoFormat);			///< Video format string
+		ROVAR(uint32_t,			xSize);					///< Horizontal pixel size
+		ROVAR(uint32_t,			ySize);					///< Vertical pixel size
+		ROVAR(uint32_t,			xAspect);				///< Horizontal component of aspect ratio
+		ROVAR(uint32_t,			yAspect);				///< Vertical component of aspect ratio
+		ROVAR(uint32_t,			bpp);					///< Bits per pixel
+		ROVAR(E_COLOUR_SPACE,	colourSpace);			///< Colour space
+		ROVAR(float,			fps);					///< Frames per second
+		ROVAR(uint32_t,			iSoundFormat);			///< Sound format value -- TODO: REMOVEME!
+		ROVAR(string,			sCustomSoundFormat);	///< Custom sound format -- only valid if soundFormat == SOUND_CUSTOM
+		ROVAR(E_SOUND_FORMAT,	soundFormat);			///< Sound format value, decoded
+		ROVAR(float,			soundSampleRate);		///< Sound sample rate
+		ROVAR(uint32_t,			iSoundChannels);		///< Number of sound channels (1=mono, 2=stereo, 0=no audio)
+		ROVAR(uint32_t,			iSoundBitsPerSample);	///< Bits per sound sample
+		ROVAR(uint32_t,			iFramesPerChunk);		///< Frames per A/V chunk
+		ROVAR(size_t,			iNumberOfChunks);		///< Number of complete A/V chunks
+		// Even and odd chunk size skipped, we don't need them
+		// Catalogue and sprite offsets skipped, not required either.
+		// No, we don't even provide the sprite size and keyframe table offset...
+		ROVAR(ReplayCatalogue,	catalogue);
 
 		ReplayFile();
 		ReplayFile(istream &stream);
@@ -357,7 +415,7 @@ ReplayFile::ReplayFile(istream &stream)
 
 	// Now load the catalogue
 	stream.seekg(_oCatalogueOffset, ios_base::beg);
-	catalogue.load(stream, _iNumberOfChunks);
+	_catalogue.load(stream, _iNumberOfChunks);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
