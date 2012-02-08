@@ -65,23 +65,23 @@ const char * S_VIDEOFORMATS[] = {
 	"8bpp YUV, chroma H/V subsampled by 4",
 	"Moving Blocks",
 	"24bpp uncompressed",
-	"16bpp YUV, chroma horiz subsampled by 2",
-	"12bpp YUV, chroma H/V subsampled by 2",
-	"9bpp YUV, chroma H/V subsampled by 4",
+	"16bpp YUV, chroma horiz subsampled by 2 (YUV)",
+	"12bpp YUV, chroma H/V subsampled by 2 (YUV)",
+	"9bpp YUV, chroma H/V subsampled by 4 (6Y5UV)",
 	"Pointer to MPEG movie",
 	"MPEG video data stream in ARMovie file",
 	"UltiMotion",
 	"Indirect video",
-	"12bpp YUV chroma H/V subsampled by 2",
-	"Moving Blocks HQ",
-	"H.263",
-	"Super Moving Blocks",
-	"Moving Blocks Beta",
-	"16bpp YUV Chroma horiz subsampled by 2",
-	"12bpp YY8UVd4 chroma horiz subsampled by 2",
-	"11bpp 6Y6Y5U5V chroma horiz subsampled by 2",
-	"8.25vpp 6Y5UV chroma H/V subsampled by 2",
-	"6bpp YYYYd4UVd4 chroma H/V subsampled by 2"
+	"12bpp YUV chroma H/V subsampled by 2 (6Y5UV)",
+	"Moving Blocks HQ (YUV)",
+	"H.263 (6Y5UV)",
+	"Super Moving Blocks (6Y5UV)",
+	"Moving Blocks Beta (6Y6UV)",
+	"16bpp YUV Chroma horiz subsampled by 2 (6Y5UV)",
+	"12bpp YY8UVd4 chroma horiz subsampled by 2 (6Y5UV)",
+	"11bpp 6Y6Y5U5V chroma horiz subsampled by 2 (6Y5UV)",
+	"8.25vpp 6Y5UV chroma H/V subsampled by 2 (6Y5UV)",
+	"6bpp YYYYd4UVd4 chroma H/V subsampled by 2 (6Y6UV)"
 };
 
 /**
@@ -120,12 +120,18 @@ typedef enum {
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
+ * @brief An entry in a Replay file's chunk catalogue.
+ */
+typedef struct {
+	size_t chunkOffset, videoSize, soundSize;
+} ReplayCatalogueEntry;
+
+/**
  * @brief Encapsulation of an Acorn Replay file's chunk catalogue
  */
 class ReplayCatalogue {
 	private:
-		// TODO: should be a vector of a struct which contains all three...
-		vector<size_t>		chunkOffsets, videoSizes, soundSizes;
+		vector<ReplayCatalogueEntry>	entries;
 
 	public:
 		/**
@@ -145,7 +151,7 @@ class ReplayCatalogue {
 		 */
 		const size_t size() const
 		{
-			return chunkOffsets.size();
+			return entries.size();
 		}
 
 		/**
@@ -155,11 +161,11 @@ class ReplayCatalogue {
 		{
 			// TODO: Range Check
 			if (chunkOffset)
-				*chunkOffset = chunkOffsets[index];
+				*chunkOffset = entries[index].chunkOffset;
 			if (videoSize)
-				*videoSize = videoSizes[index];
+				*videoSize = entries[index].videoSize;
 			if (soundSize)
-				*soundSize = soundSizes[index];
+				*soundSize = entries[index].soundSize;
 		}
 
 		/**
@@ -172,18 +178,16 @@ class ReplayCatalogue {
 			cout << "Catalogue entries: " << size() << endl;
 			cout << "ChunkOf\tVideoSz\tSoundSz" << endl;
 			for (size_t i=0; i<size(); i++) {
-				cout << chunkOffsets[i] << "\t"
-					<< videoSizes[i] << "\t"
-					<< soundSizes[i] << endl;
+				cout << entries[i].chunkOffset << "\t"
+					<< entries[i].videoSize << "\t"
+					<< entries[i].soundSize << endl;
 			}
 		}
 };
 
 void ReplayCatalogue::clear()
 {
-	chunkOffsets.clear();
-	videoSizes.clear();
-	soundSizes.clear();
+	entries.clear();
 }
 
 void ReplayCatalogue::load(istream &stream, const size_t numChunks)
@@ -195,21 +199,19 @@ void ReplayCatalogue::load(istream &stream, const size_t numChunks)
 
 	// Load all the catalogue chunks...
 	for (size_t i=0; i<numChunks+1; i++) {
-		size_t x,y,z;
 		istringstream ist;
+		ReplayCatalogueEntry ent;
 
 		// Get a line, trim the spaces and pull it into the string stream
 		std::getline(stream, st); TrimSpaces(st); ist.clear(); ist.str(st);
 
 		// Get the chunk offset, video size and sound size
-		ist >> x; ist.ignore(st.size(), ',');
-		ist >> y; ist.ignore(st.size(), ';');
-		ist >> z;
+		ist >> ent.chunkOffset;	ist.ignore(st.size(), ',');
+		ist >> ent.videoSize;	ist.ignore(st.size(), ';');
+		ist >> ent.soundSize;
 
 		// Store the chunk offset and size
-		chunkOffsets.push_back(x);
-		videoSizes.push_back(y);
-		soundSizes.push_back(z);
+		entries.push_back(ent);
 	}
 }
 
@@ -441,7 +443,9 @@ void ReplayFile::dump(void)
 			cout << "Iota Software "			<< _iVideoFormat << endl;
 		else if ((_iVideoFormat >= 600) && (_iVideoFormat < 700))
 			cout << "Warm Silence Software "	<< _iVideoFormat << endl;
-		else if ((_iVideoFormat >= 900) && (_iVideoFormat < 1000))		// FIXME is this 800-900 or 900-1000?
+		else if ((_iVideoFormat >= 800) && (_iVideoFormat < 809))
+			cout << "Henrik Bjerregard Pedersen [small_users block] " << _iVideoFormat << endl;
+		else if ((_iVideoFormat >= 900) && (_iVideoFormat < 1000))
 			cout << "Innovative Media Solutions " << _iVideoFormat << endl;
 		else
 			cout << "Unknown ID " << _iVideoFormat << endl;
