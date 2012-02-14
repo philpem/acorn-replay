@@ -416,6 +416,25 @@ ReplayFile::ReplayFile(istream &stream)
 	// Now load the catalogue
 	stream.seekg(_oCatalogueOffset, ios_base::beg);
 	_catalogue.load(stream, _iNumberOfChunks);
+
+	ofstream videostream("video", ios::out | ios::binary | ios::trunc);
+	ofstream soundstream("sound", ios::out | ios::binary | ios::trunc);
+	for (size_t i=0; i<catalogue().size(); i++) {
+		size_t chunkofs, vidsz, sndsz;
+		catalogue().get(i, &chunkofs, &vidsz, &sndsz);
+		stream.seekg(chunkofs, ios_base::beg);
+		if (vidsz > 0) {
+			char vbuf[vidsz];
+			stream.read(vbuf, vidsz);
+			videostream.write(vbuf, vidsz);
+		}
+		if (sndsz > 0) {
+			char sbuf[sndsz];
+			stream.read(sbuf, sndsz);
+			soundstream.write(sbuf, sndsz);
+		}
+	}
+	videostream.close(); soundstream.close();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
