@@ -77,11 +77,11 @@ unsigned char getbits(istream &stream, int i)
 
 int main(void)
 {
-	RGB_TRIPLET t = YUV2RGB(128, 128, 0);
 /*
 	CImg<int> img(256,256,1,3);
 
 	int y, u, v;
+	RGB_TRIPLET t;
 	y = 128;
 	for (v=0; v<256; v++) {
 		for (u=0; u<256; u++) {
@@ -122,34 +122,55 @@ int main(void)
 	const int WIDTH=192, HEIGHT=148;
 	CImg<unsigned char> img(WIDTH, HEIGHT, 1, 3);	// 1 dimension, RGB
 	ifstream video("video", ifstream::binary);
+	RGB_TRIPLET t;
 
 	int frame = 1;
+
+	unsigned char Ys[WIDTH];
+	unsigned char Us[WIDTH], Vs[WIDTH];
+
 	while (!video.eof()) {
 		for (int y=0; y<HEIGHT; y++) {
 			for (int x=0; x<WIDTH; x+=2) {
-				// TODO: We really should be doing Chroma Interpolation here to get the missing samples.
-				// Unfortunately (for you), I'm to lazy to implement linear interpolation! ;)
-				unsigned char y1, y2, u, v;
-				RGB_TRIPLET t;
-				// Get Y1, Y2, U and V samples
-				y1 = getbits(video, 5);
-				y2 = getbits(video, 5);
-				v = getbits(video, 5);
-				u = getbits(video, 5);
-				// bias Y, U and V to 8 bits (they're 5 bits to start with)
-				y1 <<= 3; y2 <<= 3; u <<= 3; v <<= 3;
-				// U and V are signed. make them unsigned.
-				u = (char)u + 128;
-				v = (char)v + 128;
-				// convert both pixels from YUV to RGB
-				t = YUV2RGB(y1,u,v);
+				/***
+				 * Get Y1, Y2, U and V samples
+				 * - these are 5bits and we need 8bits, so shift left 3 bits
+				 * - also, the U and V samples are signed, we need unsigned.
+				 ***/
+				Ys[x+0] = getbits(video, 5) << 3;
+				Ys[x+1] = getbits(video, 5) << 3;
+				Vs[x+0] = (getbits(video, 5) << 3) + 128;
+				Us[x+0] = (getbits(video, 5) << 3) + 128;
+			}
+
+			for (int x=1; x<WIDTH-1; x+=2) {
+				// Perform linear interpolation on the U-V samples
+#define FLOAT_INTERPOLATION
+#ifndef DISABLE_CHROMA_INTERPOLATION
+#ifdef FLOAT_INTERPOLATION
+#warning "Chroma interpolator: floating point"
+				Us[x] = (0.5 * Us[x-1]) + (0.5 * Us[x+1]);
+				Vs[x] = (0.5 * Vs[x-1]) + (0.5 * Vs[x+1]);
+#else
+#warning "Chroma interpolator: integer"
+				Us[x] = ((int)Us[x-1] + (int)Us[x+1]) / 2;
+				Vs[x] = ((int)Vs[x-1] + (int)Vs[x+1]) / 2;
+#endif
+#else // DISABLE_CHROMA_INTERPOLATION
+#warning "Chroma interpolator: DISABLED!"
+				Us[x] = Us[x-1];
+				Vs[x] = Vs[x-1];
+#endif
+
+				// Convert two pixels from YUV to RGB
+				t = YUV2RGB(Ys[x-1], Us[x-1], Vs[x-1]);
 				img(x, y, 0, 0) = t.r; img(x, y, 0, 1) = t.g; img(x, y, 0, 2) = t.b;
-				t = YUV2RGB(y2,u,v);
+				t = YUV2RGB(Ys[x], Us[x], Vs[x]);
 				img(x+1, y, 0, 0) = t.r; img(x+1, y, 0, 1) = t.g; img(x+1, y, 0, 2) = t.b;
 			}
 		}
 		cout << "frame " << frame++ << endl;
-		img.display(0);
+		if (frame == 120) img.display(0);
 	}
 
 	return 0;
