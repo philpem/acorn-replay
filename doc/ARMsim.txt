@@ -1,0 +1,38 @@
+#define ARM_R_LR 14
+#define ARM_R_PC 15
+
+class CARMEmulation {
+	uint32_t regs[16];	// LR=R14, PC=R15, rest uncommitted
+	uint32_t r_fiq[7];	// R8 to R14 inclusive, FIQ mode
+	uint32_t r_irq[2];	// R13 and R14 in IRQ mode
+	uint32_t r_svc[2];	// R13 and R14 in SVC mode
+
+	inline uint32* REG(char rn) {
+		switch (regs[ARM_R_PC] & 3) {
+			case 0:	// USER mode
+				return &regs[rn];
+			case 1:	// FIQ mode
+				return (rn >= 8) && (rn <= 14) ? &r_fiq[rn-8] : &regs[rn];
+			case 2:	// IRQ mode
+				return (rn >= 13) && (rn <= 14) ? &r_irq[rn-13] : &regs[rn];
+			case 3:	// SVC mode
+				return (rn >= 13) && (rn <= 14) ? &r_svc[rn-13] : &regs[rn];
+		}
+	}
+}
+
+/**
+ * PC format:
+ * [ N Z C V I F ] [ PC (24 bits) ] [ S1 S0 ]
+ *
+ * S1:S0:
+ *   00 USER mode
+ *   01 FastIRQ (FIQ)
+ *   10 Interrupt (IRQ)
+ *   11 Supervisor (SVC)
+ *
+ * N = Negative, Z = Zero, C = Carry, V = Overflow, I = IRQdisable, F = FIQdisable
+ * memaddr[byte] = (pc & (0xFFFFFF<<2))
+ * memaddr[word] = ((pc>>2) & 0xFFFFFF)
+ */
+
