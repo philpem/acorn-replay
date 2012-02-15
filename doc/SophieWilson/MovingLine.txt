@@ -1,0 +1,376 @@
+                       Acorn Replay
+                       ============
+
+           Motion Video Decompression by Software
+           --------------------------------------
+
+Introduction
+------------
+
+In the last year hardware systems which allow the replay of video pictures
+from a digital medium have begun to appear, for example DVI and someday
+MPEG. These systems are currently expensive and generally require an
+advanced computing platform to run them. Also beginning to appear are
+software systems such as QuickTime (Apple), EditOne (EIDOS) and !Projector
+(ACE) which offer software systems which can display moving small images.
+However the software systems either do not manage to be real time (QuickTime
+and !Projector) or have low resolution (EIDOS).
+
+Acorn Replay is a software replay system which is real time and of high
+resolution. An ARM3 powered Acorn Archimedes computer (A540, A5000) can
+replay 16 bit deep colour video of size 160 by 128 pixels at 25 frames per
+second on the desktop; they can also replay the video as a 320 by 256 pixels
+full screen display at 25 frames per second. Lesser Archimedes machines
+(Adelaide, A440 with ARM3) can replay 25 frames per second in some screen
+modes and can replay at 12.5 frames per second on most desktop displays.
+A440 and A3000 can replay 12.5 frames per second in some desktop screen
+modes. The average frame size is 5KBytes making it possible to replay Moving
+Lines video from Winchester, Magneto-Optic disc, NFS and (at the lower frame
+rates or at low quality) CD-ROM.
+
+[Aside: throughout this discussion 160 by 128 pixel source is assumed:
+arbitarily sized movies can be made.]
+
+Archimedes Computers and Screen modes
+-------------------------------------
+
+Acorn Archimedes computers have a highly programmable video display system.
+One can choose the pixel size, depth and aspect ratio. The computers as
+delivered can generate the following interesting displays for video work:
+
+"Mode 13"    50Hz, 320x256y 8 bit square pixels
+"Mode 15"    50Hz, 640x256y 8 bit 2:1 aspect ratio pixels
+"Mode 36"    50Hz, 768x288y 8 bit 2:1 aspect ratio pixels overscanned
+"Mode 28"    60Hz (VGA), 640x480y 8 bit square pixels
+
+The display refresh is performed in hardware from the primary memory system
+so increasing the display resolution decreases the available memory
+bandwidth for computation (decompression in this case).
+
+For the 320x256 mode the 160x128 video is a quarter of the full screen and
+the mode uses less than a quarter of the memory bandwidth. A "minimal" mode
+can be defined displaying only the 160x128 moving pixels and using less than
+a sixteenth of the memory bandwidth. Acorn Replay can display a full screen
+of 320 by 256 pixels (double in both directions from the 160 by 128 pixel
+display) at 25 frames per second on any ARM3 powered machine. It can display
+a full screen of 320 by 256 pixels at 12.5 frames per second on an A3000.
+
+The desktop screen works in all modes, but is effectively unusable at
+320x256 pixels. The 640x256 pixel and above modes are reasonable desktop
+modes. However the 640x256 mode uses up to one third of the memory bandwidth
+and requires the 160x128 video to be painted onto 320x128 pixels (doubled
+horizontally) in order to preserve the video's aspect ratio. Thus running
+video in a desktop screen mode requires a large increment in performance:
+paint twice as many pixels using only two thirds of the resources... A
+"minimal" mode in this state is especially valuable. Acorn Replay can
+display a 320x128 painting of a 160x128 movie at 25 frames per second on
+any ARM3 powered machine. It can display at 12.5 frames per second on an
+A3000 - just!
+
+For a VGA display square pixels are back, but the 160x128 video would be
+only a sixteenth of the display area: Acorn Replay doubles the output in
+both directions to 320 by 256 painted pixels. And the display uses all of
+the memory bandwidth of an A400 or A3000, even managing to use 60% of the
+Adelaide, A540 or A5000 memory bandwidth: Acorn Replay needs an ARM3. For
+VGA (and any 'custom' modes) the display refresh is not 50Hz and 25 frame
+per second video (say) requires frames to be added or dropped from the
+seqence e.g. to display 25 frames per second on 60 frames per second by
+displaying on every 2, 2, 3, 2, 3 frame (then repeat). This requires even
+higher peak speeds from the decompressor (but the same average speed).
+Acorn Replay can display 320x256 pixels painted from a 160x128 movie at
+25 frames per second on A540 or A5000.
+
+Previous Work
+-------------
+
+LZW and ACE
+
+Previously I have used 16 bit LZW encoded 8 bit images, compressing a video
+in chunks of N frames. This takes an average frame of 160 by 128 pixels down
+to 10KBytes and 25 frame per second videos can be replayed from Winchester
+and Magneto-Optic disc on an A540 in a 320 by 256 pixel screen mode. ARM3
+microprocessors are quite adept at decompressing LZW although the size of
+buffers required is a problem, and this approach is simple and has high
+quality for an 8 bit system. As a result of this work, ACE Computers now use
+12 bit LZW compression for moving sequences (from RAM) and a fast LZW
+decompressor is present in RISC OS 3.
+
+This system could not decompress at 25 frames per second on A5000, nor could
+it manage 25 frames per second in any of the desktop screen modes on an A540
+(22 was the maximum). A 12.5 frame per second video was mastered onto a
+CD-ROM and was also unplayable at the proper rate - although the peak
+bandwidth of CD-ROM could just cope with the required data rate, various
+system latencies such as head movement caused the worst case times to be too
+long.
+
+Apple QuickTime
+
+QuickTime's software decompressor can adapt to various pixel depths on
+replay and can display an arbitarily stretched image. However it does not
+display a new frame at video rates, displaying instead the frame closest in
+time to the required one. Update rates on the material seems to vary between
+3 and 15 frames per second for 160 by 128 sized images, with the system only
+generating high frame rates on mostly still, synthetically generated images.
+
+Since QuickTime doesn't need to display at full speed, it can accept data
+from any device. The movie will complete after the total real time of the
+original sequence. Apple (and its third partie) can replace the decompressor
+with new software or software+hardware systems.
+
+EIDOS
+
+The EIDOS EditOne software compressor and decompressor can both compress and
+decompress at 25 frames per second in real time. On an A540 it is quick
+enough to decompress and mix four video streams on a 160 by 144 pixel image
+for short periods of time (it can't overcome head movement time on the
+source and so needs to buffer some of the streams) and can display in
+desktop screen modes. Similarly it can compress and record to Magneto-Optic
+disc at 25 frames per second from a continuous source (e.g. a camera, TV
+broadcast, Video tape recorder).
+
+However the quality of the display is quite low: the video is conditionally
+replenished at around 12 bit resolution and dithered onto the display in
+blocks: moving blocks are obvious. Designed for offline video editing the
+current system does not handle compressing editted video sequences with cuts
+and mixes particularly well - it takes a few frame times to complete a cut.
+Data per frame averages 2-3KBytes.
+
+[Offline video editing: a copy of the master tape(s) is made onto the
+computer, all the cuts, effects, mixes etc. are prototyped using it. Then an
+"Edit Decision List" is written by the computer which is applied to the
+original master tape(s) at high resolution to produce the final video
+sequence. The quality of the display on the EIDOS EditOne screen doesn't
+affect the quality of the final video.]
+
+Acorn Replay
+------------
+
+Requirements
+
+When setting out to design a new compression system, my basic requirement
+was to do a much better job than 16 bit LZW compression - around a factor of
+two better to 5KBytes a frame. I also wanted the decompression to use less
+of the CPU and the master quality to be better than 8 bits. After some
+evaluation of options, 15 bit per pixel (5 bits per r, g, b) master quality
+was chosen. A 160x128 frame at 15 bits per pixel is 38400 bytes and must be
+compressed by around a factor of 7 to reach 5KBytes a frame.
+
+Initial Decisions
+
+Fairly obviously no lossless compression system can reach a factor of 7. LZW
+can usually manage a factor of 2 and some computationally nastier systems
+such as Arithmetic compression can better that by a small amount. Since
+video images possess frame to frame coherence, I decided to develop some
+sort of conditional replenishment scheme. But it had to be capable of dealing
+with pans and zooms (and camera shake!); effectively becoming a motion
+detection and coding scheme.
+
+Moving What?
+
+A video scene is composed of many 3D objects moving in different directions,
+changing shape and appearance as they do so. What sort of structure should I
+look for: an N sided polygon? a quadrilateral? a raster patch? Imagining the
+likely code for the decompressor pointed quickly and strongly towards
+horizontal lines. The ARM processor can load or store consecutive memory
+locations to/from registers in one efficient instruction: this instruction
+is the obvious target for making the decompressor as fast as possible and so
+I chose to look for horizontal line segments.
+
+An N^4 problem
+
+Potentially looking for moving horizontal lines is a very time consuming
+problem. For each pixel of the second frame, you need to search all pixels
+of the first frame to find where it came from...
+
+Restricting the area of search brings the compression times back to reality.
+For a pixel at (x,y), the Acorn Replay compressor searches the area from
+(x-move,y-move) to (x+move,y+move) in the previous frame. This is an area of
+(move*2+1)^2 pixels. The value of "move" needs to be chosen such that the
+compressor does find most of the pixels inside the area (i.e. large), but
+doesn't take too long doing it (i.e. small).
+
+For a talking head filmed with a stationary camera, "move" can be quite
+small - as low as 1 - and still have the compressor find the pixels.
+However, for more general movement of subjects and a moving camera, "move"
+has to be larger. After some research on video with large moving subjects
+with a pan and zoom camera viewpoint I ended up with the value 8: 288 pixels
+to search for each pixel. (I spent a long time at 7, but 12.5 frame per
+second movies have "faster" moving objects).
+
+Spatial as well as temporal
+
+Just looking at a 288 pixel area of the previous frame isn't good enough.
+It catches all (or nearly all) motion of objects, but real video sequences
+have video effects in addition. In particular, cuts and fades represent
+complete breaks of the temporal stream. Acorn Replay's compressor also
+searches the current video frame (up to the current scan line) for matching
+lines. This search is restricted to a rectangular area (x-smove,y-smove) to
+(x+smove,y-1), an area of smove*(smove*2+1) pixels. Due to the coding scheme
+adopted (see below), the value of smove could be 8 or 9 without significant
+effects to other data - so I chose 9. Another 171 pixels to search for a
+match...
+
+Matching the pixels
+
+For non-synthetic video compression it isn't sufficient just to test for
+equality between pixels. There is bound to be noise in the original picture
+added to quantisation noise when the images were digitised. Instead a
+measure of the distance apart of the pixels is tested to be less than a
+threshold value. Acorn Replay's compressor computes the squared distance
+(r1-r2)^2+(g1-g2)^2+(b1-b2)^2 and tests for less than or equal to threshold
+"thr". If "thr" is 0, then this is an expensive way of testing for equality.
+The higher the value of "thr", the longer the horizontal line segments and
+the better the compression ratio. Too high a value of "thr" results in the
+compressor piecing together a scene of lines which are visibly the wrong
+colours. A single value of the threshold can also not be used, since it
+represents a very large percentage change for dark colours and a small
+percentage change for bright colours. Therefore the compressor has a table
+of threshold values indexed by original sample.
+
+Reducing the search time
+
+The compressor has to find the longest horizontal line segment which matches
+the current pixel and those to its right starting at any point in the "move"
+defined 289 pixel square. It does this with custom machine code in a brute
+force method: try each of the 289 pixel start points and see how long a line
+segment is possible, then take the longest. Then try the 171 pixel start
+points of the current screen.
+
+Several things redeem this simple approach: the ARM3 is a fast processor and
+can compute the pixel match function quickly (about 20 cycles); places which
+"aren't the right place" usually fail on the first or second pixel *and* the
+compressor moves on by the length of the matched line before trying for a
+new match.
+ 
+Compression times on an A540 for 160x128 pixel video with "move"=8 and "thr"
+as described above average 10 seconds per frame (including display of
+progress images and coding time).
+
+Computing the Threshold values
+
+The compressor *has* to produce output which is small enough to be (a)
+decompressed and (b) read off the source media. So the compressor adaptively
+alters the threshold values to ensure the output is small enough. The
+threshold table is recomputed if the threshold level is altered from an
+equation:
+
+x=r^2+g^2+b^2
+thr(r,g,b)=x*quality*(1-x/2883/2)+pedestal
+
+The 'quality' parameter can vary between 0 and 15% (after 15% the quality of
+the output is so dreadful that you don't want to go any further). The value
+of 'pedestal' parameter is either 2.5 or 3.5.
+
+For CD-ROM, the compressor is required to produce frames in the ranges:
+
+12.5 fps: between 5000 and 6600 bytes
+25 fps:   between 4200 and 5400 bytes
+
+Much larger data rates are possible on other digital devices, so the
+quality or size of image can be changed.
+
+Coding the output of the Acorn Replay compressor
+
+The compressor's output has to be packed into a file which is small and
+quick to decompress. It is thus expressed as a stream of 16 bit words. The
+possible meanings of a word are:
+
+new pixel: coded as <15 bits>0
+
+  This is a "new" pixel - a single pixel which the compressor could not find
+  in the previous frame.
+
+temporal: coded as <direction><length>1
+
+  The position of the source relative to the target is encoded as a 9 bit
+  number. 0 represents (x-move,y-move), 1 (x-move+1,y-move) etc up to (x,y)
+  which is not coded in this form. Then (x+1,y) is the next number. Thus the
+  289 positions for "move"=8 are coded as the values 0-287, omitting the no
+  movement case. The remaining 6 bits of information expresses the length of
+  the horizontal line: 0-63 code for lengths of 2 to 65 pixels.
+
+spatial: coded as <direction><length>1
+
+  The position of the source relative to the target is encoded as a 9 bit
+  number. 288 represents (x-smove,y-smove), 289 (x-smove+1,y-smove) etc up to
+  459 for (x+smove,y-1). The remaining 6 bits of information expresses the
+  length of the horizontal line: 0-63 code for lengths of 2 to 65 pixels.
+
+skip n pixels: coded as <&1e><length>1
+
+  A five bit header (11110) which cannot be a moving line packet signals a
+  skip n pixels packet. 10 bits of information code for skips of length 1 to
+  1024.
+
+new n pixels: coded as <&1f><length>1
+
+  A four bit header (11111) which cannot be a moving line packet signals a
+  new n pixels packet. 10 bits of information code for values 16 to 1024.
+  This packet is then followed by n 15 bit pixels. (For values of n less than
+  16 the compressor uses the new pixel packet form since it is denser). After
+  unpacking the 15 bit pixels, the decompressor gets back to 16 bit alignment.
+
+end of frame: coded as <&1cc><0>1
+
+The bit stream continues for N frames before being broken and the whole
+"chunk" of compress information being stored to disc. N is selectable at
+compression time (e.g. 10, 20, 40) and is a tradeoff between size of memory
+buffers for a chunk versus the efficiency of fewer disc i/o operations while
+decompressing (the compressed chunks are double buffered from disc). Around
+2 seconds per chunk seems to work well. A 2 second chunk of 25 frame per
+second video is up to 250KBytes.
+
+Key frames
+
+As well as providing the stream of data for continuous replay of a movie,
+the compressor also provides uncompressed frames to allow replay start at
+any particular chunk. These are just encoded as 0<b><g><r> 16 bit fields
+(so they are all the same size).
+
+The Acorn Replay compressor system
+
+The Acorn Replay compressor requires a sequence of digitised video still
+frames which can be replayed to give a good quality moving effect. The test
+compressor system comprises the following:
+
+  A Philips LaserVision player
+  A 4MByte Acorn Archimedes A540 Computer
+  A Wild Vision V9 colour image digitiser
+  (also tested on an Irlam Moving-Image digitiser)
+  A Sony MagnetoOptic disc
+  A copy of Acorn's ChangeFSI
+
+A specially modified version of the V9's control software provides the
+central video grabbing loop: when an icon is clicked on, the software will:
+
+  acquire the current frame (512x256 12 bits per pixel (192KBytes))
+  instruct the LaserVision player to advance to the next frame
+  use ChangeFSI to process to a neutral format (160x128 15 bits per pixel)
+
+repeated as necessary. The ChangeFSI processing at this stage is not
+strictly necessary but reduces the amount of information that is kept around
+by a factor of four. It also helps compensate for the low quality of the V9
+digitiser.
+
+After a sequence has been acquired, the Acorn Replay compressor is run,
+usually overnight (2-4 hours for an 80 second sequence of 25 frames per
+second). It is run a second time to make the 12.5 frame per second file.
+
+Sound
+
+Sound is captured in a normal speed play of the source. It is required that
+the sound sampler's notion of time and the video sequence's notion of time
+agree: otherwise the sound will start in sync with the video and drift out
+as the clip is played. This can be achieved either by extreme accuracy of
+player and sampler (both to within 1/10 second after 1000 seconds, say) or
+by GENLOCKing the player and sampler togther. Since most professional video
+equipment has GENLOCK input capability, Acorn recommend that the sampler's
+clock is divided down to produce a VSync-like signal to which the video
+source is GENLOCKed.
+
+Sound is captured by an 8x over-sampling 16bit D->A followed by DSP
+decimation and conversion to 8 bit exponential format for replay at 12000Hz.
+It thus uses 12000 bytes per second. Subjectively the quality is good -
+equal to AM radio with no interference. The format allows for an arbitary
+number of audio channels, but only mono sound is used for CD-ROMs.
+(the replay system can replay at arbitary sample rates).

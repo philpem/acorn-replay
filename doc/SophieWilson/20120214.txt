@@ -1,0 +1,56 @@
+From: Sophie Wilson
+To: Philip Pemberton <philpem@philpem.me.uk>
+Date: Tue, 14 Feb 2012 15:42:20 +0000
+Subject: Re: Replay "Moving Lines/Blocks" Codecs
+
+I'm sorry - you've been sitting in a spam filter. On the bright side,
+at least I do look in spam filters some times!
+
+On 9 February 2012 22:00, Philip Pemberton <philpem@philpem.me.uk> wrote:
+> Hi,
+>
+> Firstly, thanks for your very informative message in
+> comp.sys.acorn.programmer at about this time last year, regarding the
+> Moving Blocks Replay codec. I'm about half-way through writing a Replay
+> demuxer/decoder for my Linux box, and am at the stage where I can demux
+> the A/V data to disc, and not far from getting the YUV decoder going
+> (once I figure out the colour space conversion).
+
+What's the problem there? Its well documented (read the ColourIf
+document) and there's source of all the programmes. See also FastConv.
+
+> I realise you said that Moving Blocks is "outright better" than Moving
+> Lines, but I'd still like to write a decoder for that too. I realise
+> Replay was written many, many years ago, but are you aware of any
+> information on the bitstream format for Moving lines?
+
+Yes (attached)
+
+> Also, do you remember anything about how the Moving Blocks/Lines
+> variants work? These would be Format Codes 17, 19 and 20 -- Moving
+> Blocks HQ, Super Moving Blocks and Moving Blocks Beta. I'm hoping I can
+> figure out the YUV formats using the Replay demo decoder source code,
+> but the references to "6Y5UV" are a little perplexing.
+
+Read the ColourIf document - its in all !ARMovie "Documents"
+directories! (I've attached one in case you've lost the whole thing)
+6Y5UV is the colour space information, 6 bits of Y and 5 bits of U and
+V.
+
+> Am I right in thinking Ultimotion is a reference to IBM Ultimotion?
+
+Yes.
+
+>
+> Ideally what I'd like to do is get support into libavcodec (ffmpeg) for
+> single-AV (zero or one video tracks, zero or one audio) Replay files,
+> and the "basic" compressors. As I understand it, there's playback code
+> for the Tomb Raider FMV videos (Eidos Escape series codecs) but nothing
+> else...
+>
+> Thanks again,
+> --
+> Phil.
+> philpem@philpem.me.uk
+> http://www.philpem.me.uk/
+

@@ -1,0 +1,1198 @@
+TITLE:
+ Efficient software video methods: using 4x4 DCTs and moving 4x4 Blocks for
+ video decompression and painting into Arbitrary Shapes.
+
+AUTHOR:
+ Sophie Wilson
+
+AFFILIATION:
+ Acorn Computers Limited
+  Technical Division
+   Acorn House
+    Vision Park
+     Histon
+      Cambridge
+       CB4 4AE
+        Phone: (0223) 254360
+        Fax: (0223) 254262
+
+EMAIL: SWilson@acorn.co.uk
+
+ABSTRACT:
+
+ Component parts of a complete software only video decompression system are
+examined in detail. The complete system can decompress 25 fps video and paint
+it either 2:1 expanded by interpolation or onto arbitrary shapes.
+
+The paper shows 4x4 inverse DCTs are computationally twice as efficient as 8x8
+inverse DCTs. In addition they have less register pressure, making the
+implementation more efficient for most processors.
+
+This extra computational efficiency places more pressure on improving the
+computation of other components of the video decompression system. This paper
+describes a coding scheme for the quantised components which has an efficient
+decompression algorithm. The implementation of the inverse DCT is examined in
+detail, including removing all multiplication operations and replacing them
+with shift-and-add operations, plus choosing a value for the fixed point to
+make these "multiplications" into single CPU cycle operations. The data flow
+through a complete 4x4 DCT is described such that the results of intermediate
+1x4 DCTs are written to and read from memory as efficiently as possible. An
+experimentally derived set of quantisers for the 4x4 DCT are presented which
+allow the decompression process to use shift-and-add is described. Temporal
+prediction of the DC value of the quantised DCT shows a higher compression
+factor than spatial prediction - but is slower since the prediction must be
+updated on moved blocks.
+
+Efficient DCTs by themselves are not enough: the paper shows how to organise
+the search for a block from the previous frame, discusses the effects of
+changing the search area (in particular to being non-square) and shows a coding
+scheme suitable for fast decompression. It also discusses how to organise the
+block matching and that good results can be obtained if some pixels are allowed
+to match less closely than the nominal value.
+
+The paper describes how the painting of decompressed digital video data has
+been extended from the original highly efficient rectangle to a completely
+programmable shape: any pixel of the output shape can be painted with any pixel
+from the decompressed picture. In addition, because the system paints all
+pixels of the output shape each frame, the actual shape can be moved and
+changed while decompression proceeds.
+
+Shape files are precompiled into a run length format (described in the paper)
+and this format is manipulated into a screen pixel based data structure before
+the movie is played. There is no limit (apart from available processor power)
+on the complexity of the shape: it can be disconnected, concave etc. though it
+can only contain pixels from the current decompressed picture.
+
+Using a 25MHz ARM3 (Acorn Archimedes) or ARM610 processor, the system is
+capable of decompressing a 25 frame per second file, painting it onto a three
+dimensional model of an acorn (two parabolic surfaces for 'nut' and 'cup', plus
+two cylinders for the 'stalk') with the movie wrapped round each separate
+surface, the whole thing rotating as the movie is played.
+
+Acorn Replay has been part funded by the ESPRIT project 'MultiWorks'. Some
+sections of Acorn Replay are the subject of UK Patent Application 9209646.0.
+
+KEYWORDS:
+ Full Motion Video, Multimedia, CD-ROM, DCT, Motion search, Image Warping
+
+1. Introduction
+
+The system (Acorn Replay) provides a quarter screen video running in the GUI
+desktop of Advanced RISC Machine (ARM) powered personal computers, updated at a
+uniform 25 frames per second, with synchronised sound, decompressed in real
+time from a standard speed CD-ROM drive in a 1.5MByte RAM allocation. It can
+also provide full screen video at 25 frames per second out of the GUI desktop
+and can be used at 12.5 frames per second on less powerful computers, such as
+those with an ARM250 or ARM2 in them. It has been used for many multimedia
+titles within the UK education community. [reference 1]
+
+This capability is no longer unusual: QuickTime (Apple) and Video for Windows
+(Microsoft/Intel) offer similar facilities for Macintosh and PC computers.
+Visitors to shows are becoming used to being bombarded with moving images and
+sound. The only differences between competing systems are relatively subtle
+issues of quality, uniformity of frame rate and compression ratios. The first
+part of the paper discusses new developments for image compression using 4x4
+DCTs which are computationally very efficient.
+
+Watching television or film shows how bare the current systems are in terms of
+visual presentation. The impact of digital production methods on TV companies
+allows program directors to pick up video and shape it as they wish (or at
+least to any of the shapes which the effects box designer has provided). Video
+clips can start as a point and expand to fill a shape, they can be put onto
+moving 3d surfaces and float across the screen. Or, more sedately, the picture
+can be mapped onto a static surface in a scene (sometimes even a picture of a
+television set). These special effects are typically used at the start of a
+video clip or at its end, though sometimes they are used for the duration of
+it. The second part of the paper discusses efficient software to paint video
+frames onto an arbitrary shape.
+
+2. General Structure of the Replay Player
+
+Replay's data is stored in "ARMovie" files. After a header, each time period of
+sound and video data is recorded as a contiguous chunk, with the addresses of
+each chunk (and the sizes of each piece of data) being given in a catalogue.
+Chunk data for each time period (typically 2 seconds) is read from the disc
+into double buffered memory as one process, with semaphore flags governing the
+start of each block read. When a block has been read, another semaphore is set
+so that the video decompressor process can access this block, and the sound
+data is copied into the sound buffers.
+
+Video data is decompressed from the chunk blocks into frame buffers. The Player
+program selects which video decompressor and which audio decompressor to use
+for a particular file based on the file's header. It is at this stage that
+dithering is performed, the data in the code words being passed through
+dithering/colour look up tables by the decompressor (note that many of the
+Replay decompressors can perform this lookup operation at zero cost on most
+pixels - for example, when the decompressor copies information from a
+previously looked up place, it need not perform the lookup operation again
+[reference 2] page 15 lines 19-26).
+
+The computer screens available provide up to 24 bits per pixel. For 24 bits per
+pixel, no dithering is performed: the value in the code words is the pixel
+value. For 16 bits per pixel, the value in the code words gives two pixels
+whose average is as close as possible to the right value (these two pixels are
+usually painted horizontally adjacent, but may be vertically adjacent; their
+paint order will differ on different rows). For 8 bits (or less) per pixel, the
+value in the code words gives four pixels which are painted in a square.
+Horizontal only interpolation is standard for 16 and 24 bit per pixel displays,
+bilinear interpolation is a selectable option for those users with more
+powerful machines.
+
+As time advances, frames are taken from the frame buffers by a third process
+and painted onto the screen. If time is advancing too rapidly with respect to
+the painted frames - because the processor has been devoting time to some other
+task - then some frames will not be painted in order to allow more computer
+resources to be spent on decompression. This strategy covers all exceptional
+processing costs such as interrupts, but doesn't allow a fundamentally less
+powerful computer to decompress the data since all frames must be decompressed
+in order to catch up again. For ARM2 machines at 12.5 fps and ARM3 machines at
+25 fps all frames are painted unless there is some exceptional overhead such as
+network interrupts.
+
+Painting the video data thus uses a 3 stage pipeline of intercommunicating
+processes: the first stage fetches data from disc, the second decompresses and
+dithers it and the third paints it. The processes that run the pipeline are
+fully semaphored and interlocked: a user action such as 'Pause' takes effect
+first by stopping the painting of new frames, soon after that the decompression
+process has no free buffers and so it stops, eventually preventing the disc
+process from finding empty buffers to fill and so it stops.
+
+Although the sound is not usually held compressed, replaying the sound is not
+entirely trivial since it must be played at the correct speed whatever the
+actual speed that the sound playing system is running at. The sound replay code
+is thus a sound synthesiser, playing samples no times, once or more than once
+as required in order to make the overall sample replay rate correct. By using a
+higher play frequency, the quality of this rate synthesis can be improved: in
+use Replay usually plays the samples at 2 or 3 times the original sample rate.
+
+3. DCT based compression
+
+Initial video compressors in Replay did not use any form of transform (for
+example, the 'Moving Lines' compressor is described in reference 1). These
+compressors are exceedingly fast for software implementation and achieve
+acceptable quality on many sequences but have very obvious failings when the
+sequence contains too many cuts or too complicated information. However,
+standard transform methods such as JPEG and MPEG which can handle the more
+difficult scenes are too complex for software only implementations on the
+already installed machine base. Research was started to try and find a video
+decompression system with the capability of transform methods on difficult
+scenes and the ability to run fast on the installed machine base.
+
+A brief background on compressing pictures using transforms. Take each block of
+the picture (for example, an 8 by 8 block of pixels) and transform the
+information. Then reduce the precision of the transformed information (for
+example, by dividing each value by an integer (quantising it)) and transmit it
+to the decompressor. The decompressor reverses the process: in the example it
+must multiply the transmitted information by the value that the compressor
+divided it by and then put it through the inverse transform. By using
+transforms which separate the information into frequency components (for
+example Fourier transform and cosine transform), the higher frequency
+components to which the eye is less sensitive can be transmitted with
+dramatically less precision and still give acceptable results. [see Reference 4
+for a more complete explanation]
+
+Discrete Cosine Transform is a much studied part of the compression world. The
+international standards for JPEG and MPEG make use of 8x8 DCTs, so why use a
+4x4 one? The 4x4 DCT is computationally more efficient, and so is more amenable
+to high speed software decompression. This efficiency can be seen by comparing
+the amount of work for an 8x8 block:
+
+- using 4x4 DCTs, four are needed versus one 8x8 DCT
+
+- each two dimensional DCT is decomposed into 2*N one dimensional DCTs. So
+  using 4x4 DCTs, you need 4*(2*4)=32 1x4 DCTs, while 8x8 DCTs require
+  2*8=16 1x8 DCTs.
+
+- each 1x4 DCT uses  3 multiplies and  9 adds [details in section 4]
+- each 1x8 DCT uses 11 multiplies and 29 adds [reference 3]
+
+- so using 4x4 uses  96 multiplies and 288 adds
+  while    8x8 uses 176 multiplies and 464 adds
+
+Both algorithms need exactly the same amount of work for quantisation scaling
+and for conversion to and from fixed point (since they deal with the same
+number of pixels). The downside to 4x4 DCT is that the compression ratio is
+lowered. Maximum compression in both schemes arrives when only the dc component
+need be transmitted. For 4x4 DCT this is 16:1 compression, for 8x8 DCT this is
+64:1 compression so 8x8 is a maximum 4 times denser than 4x4 (very roughly -
+actually the dc component for 8x8 has more bits in it). In practise not all
+components are zero, so the schemes are closer, but 8x8 does have a clear win
+here. It comes at the price of more artefacts, however. For the compression
+required - around 2 bits per pixel in a motion world - the lower density of 4x4
+DCT was not an issue
+
+4. Code for one dimension 4 value inverse DCT
+
+It is quite important to make the inverse DCT as fast as possible, so this
+section covers the algorithmic reduction of the inverse DCT and then examines
+the actual assembly language coding of it. The equations which must be
+processed are:
+
+ x(0) = C * (y(0)/SQR(2) + y(1)*COS(1*PI/8) + y(2)*COS( 2*PI/8) + y(3)*COS( 3*PI/8))
+ x(1) = C * (y(0)/SQR(2) + y(1)*COS(3*PI/8) + y(2)*COS( 6*PI/8) + y(3)*COS( 9*PI/8))
+ x(2) = C * (y(0)/SQR(2) + y(1)*COS(5*PI/8) + y(2)*COS(10*PI/8) + y(3)*COS(15*PI/8))
+ x(3) = C * (y(0)/SQR(2) + y(1)*COS(7*PI/8) + y(2)*COS(14*PI/8) + y(3)*COS(21*PI/8))
+
+(12 adds, 17 multiplies by 14 constants)
+
+which simplify to
+
+ x(0) = C * (y(0)/SQR(2) + y(1)*COS(1*PI/8) + y(2)/SQR(2) + y(3)*COS(3*PI/8))
+ x(1) = C * (y(0)/SQR(2) + y(1)*COS(3*PI/8) - y(2)/SQR(2) - y(3)*COS(1*PI/8))
+ x(2) = C * (y(0)/SQR(2) - y(1)*COS(3*PI/8) - y(2)/SQR(2) + y(3)*COS(1*PI/8))
+ x(3) = C * (y(0)/SQR(2) - y(1)*COS(1*PI/8) + y(2)/SQR(2) - y(3)*COS(3*PI/8))
+
+(12 adds, 10 multiplies by 6 constants)
+
+using cosine identities. Replacing C by a new constant C/SQR(2) and writing
+k1 for COS(PI/8)*SQR(2), k2 for COS(3*PI/8)*SQR(2) 
+
+ x(0) = const * (y(0) + y(1)*k1 + y(2) + y(3)*k2)
+ x(1) = const * (y(0) + y(1)*k2 - y(2) - y(3)*k1)
+ x(2) = const * (y(0) - y(1)*k2 - y(2) + y(3)*k1)
+ x(3) = const * (y(0) - y(1)*k1 + y(2) - y(3)*k2)
+
+(12 adds, 8 multiplies by 3 constants)
+
+where the multiplication by 'const' will occur twice for each value of the
+output in the 2 dimensional case and so will be a multiplication by (const^2)
+which is 1/4 - after the two one dimensional steps, the final value requires
+division by 4. These equations can be simplified to
+
+ x(0) = (y(0) + y(2)) + (y(1)*k1 + y(3)*k2)           (equation 1)
+ x(1) = (y(0) - y(2)) + (y(1)*k2 - y(3)*k1)
+ x(2) = (y(0) - y(2)) - (y(1)*k2 - y(3)*k1)
+ x(3) = (y(0) + y(2)) - (y(1)*k1 + y(3)*k2)
+
+(8 adds, 4 multiplies by 2 constants)
+
+revealing some common subexpressions. It is interesting to note that this can
+be transformed by substituting new input values A(1)=k2*y(1) and A(3)=k1*y(3)
+which trivially reduces the system:
+
+ x(0) = (y(0) + y(2)) + (A(1)*(k1/k2) + A(3)*(k2/k1))
+ x(1) = (y(0) - y(2)) + (A(1) - A(3))
+ x(2) = (y(0) - y(2)) - (A(1) - A(3))
+ x(3) = (y(0) + y(2)) - (A(1)*(k1/k2) + A(3)*(k2/k1))
+
+(8 adds, 2 multiplies by 2 constants)
+
+A further reduction is possible because of an identity: k1/k2-1 is equal to
+k2/k1+1: both equal SQR(2). Using this identity, the equations can be written:
+
+ x(0) = (y(0) + y(2)) + (A(1)*(SQR(2)+1) + A(3)*(SQR(2)-1))
+ x(1) = (y(0) - y(2)) + (A(1) - A(3))
+ x(2) = (y(0) - y(2)) - (A(1) - A(3))
+ x(3) = (y(0) + y(2)) - (A(1)*(SQR(2)+1) + A(3)*(SQR(2)-1))
+
+and transformed to:
+
+ x(0) = (y(0) + y(2)) + ((A(1) + A(3))*SQR(2) + (A(1) - A(3)))
+ x(1) = (y(0) - y(2)) + (A(1) - A(3))
+ x(2) = (y(0) - y(2)) - (A(1) - A(3))
+ x(3) = (y(0) + y(2)) - ((A(1) + A(3))*SQR(2) + (A(1) - A(3)))
+(9 adds, 1 multiply)
+
+[a similar reduction for 1x8 inverse DCT is in reference 4]
+
+In situations where the multiplications to create A(1) and A(3) are free (for
+example, they might be combined with the multiplication of the quantisation
+constants on machines with constant multiplication cost) this would be an ideal
+1x4 inverse DCT. However the multiplier on ARM is faster at small numbers and
+many multiplications by small constants can be done with shift-and-add
+operations so the computation of A(1) and A(3) does not come for free.
+
+Equation 1 can also be transformed to:
+
+ x(0) = (y(0) + y(2)) + (k1*(y(1) + y(3)) - (k1-k2)*y(3))) (equation 2)
+ x(1) = (y(0) - y(2)) - (k1*(y(1) + y(3)) - (k2+k1)*y(1)))
+ x(2) = (y(0) - y(2)) + (k1*(y(1) + y(3)) - (k2+k1)*y(1)))
+ x(3) = (y(0) + y(2)) - (k1*(y(1) + y(3)) - (k1-k2)*y(3)))
+(9 adds, 3 multiplies by 3 constants)
+
+In this case, the values of the constants have been made positive, since
+multiplication by positive numbers is either the same speed or faster than
+multiplication by negative numbers. Processing of the values in the DCT will be
+done in fixed point, where the fixed point is at position 'fixp' and the fixed
+point value of 1.000 is 'onefp'. The fixed point values of the constants in the
+inverse DCT equation are:
+
+ k1=FIX( ( COS(PI/8) * SQR(2) ) * onefp + 0.5)
+ k2=FIX( ( COS(3*PI/8) * SQR(2) ) * onefp + 0.5)                   (not used)
+ k3=FIX( ( ( COS(PI/8) - COS(3*PI/8) ) * SQR(2) ) ) * onefp +0.5)   (k1-k2)
+ k4=FIX( ( ( COS(PI/8) + COS(3*PI/8) ) * SQR(2) ) ) * onefp +0.5)   (k1+k2)
+
+Pseudo code for the computation is:
+
+ first convert the values to fixed point
+
+ y0 = y0 << fixp
+ y1 = y1 << fixp
+ y2 = y2 << fixp
+ y3 = y3 << fixp
+
+ compute the main common subexpressions
+
+ t1 = y0 + y2
+ t2 = y0 - y2
+ t3 = (y1 + y3) * k1
+ t4 = (t3 - (k3 * y3)) >> fixp
+ t5 = (t3 - (k4 * y1)) >> fixp
+
+ (multiplication of two fixed point numbers held as integers requires
+  renormalisation)
+
+ x0 = t1 + t4
+ x1 = t2 - t5
+ x2 = t2 + t5
+ x3 = t1 - t4
+
+A naive coding for ARM [reference 5] of the algorithm is:
+
+;r2=k1, r3=k3, r4=k4
+;input in r5,r6,r7,r8
+ MOV r6,r6,LSL #fixp     ;convert y(1) to fixed point
+ MOV r7,r7,LSL #fixp     ;convert y(2) to fixed point
+ ADD r1,r7,r5,LSL #fixp  ;t1=y(0)+y(2) including fixed point conversion for y(0)
+ RSB r7,r7,r5,LSL #fixp  ;t2=y(0)-y(2) - finished with r5, r7
+ ADD r5,r6,r8,LSL #fixp  ;temp=y(1)+y(3) including fp conv for y(3)
+ MUL r11,r5,r2           ;t3=(y(1)+y(3))*k1
+ MUL r0,r8,r3            ;temp=k3*y(3) - finished with r8
+ SUB r8,r11,r0,LSL #fixp ;t4=t3-y(3)*k3 including fp conv for r8
+ MUL r0,r6,r4            ;temp=k4*y(1) - finished with r6
+ SUB r0,r11,r0           ;t5=t3-y(1)*k4
+ ADD r5,r1,r8,ASR #fixp  ;x(0)=t1+t4
+ SUB r6,r7,r0,ASR #fixp  ;x(1)=t2-t5
+ ADD r7,r7,r0,ASR #fixp  ;x(2)=t2+t5
+ SUB r8,r1,r8,ASR #fixp  ;x(3)=t1-t4
+;output in r5,r6,r7,r8 scaled left by fixp bits
+
+This takes 11 clock cycles plus the time taken by the three multiplies which will
+depend on the value of 'fixp'. For fixp=8, the multiplies will be 5 cycles on ARM,
+leading to 26 clock cycles in total.
+
+4.1 Does 'fixp' have to be 8?
+
+26 cycles is too long. And the three multiplies are clearly a good place to
+attack, since they use up more cycles than the other 11 instructions. As the
+value of 'fixp' changes, the values of k1, k3 and k4 change - the smaller 'fixp'
+is, the fewer bits in the constants and thus the less time the multiply takes:
+
+    fixp      k1        k2        k3        k4
+     1         3         1         2         4
+     2         5         2         3         7
+     3        10         4         6        15
+     4        21         9        12        30
+     5        42        17        24        59
+     6        84        35        49       118
+     7       167        69        98       237
+     8       334       139       196       473
+
+Particularly interesting is the 'fixp'=2 line: all the constants are integers
+which are of the form 2^n +/- 1. ARM (and many other RISC processors) can
+multiply by numbers of this form in one cycle only. Is 'fixp'=2 accurate
+enough?
+
+       fixp=2 value   true value     %error
+
+k1       1.25           1.3066..      4.3%
+k2       0.5            0.5412..      7.6%
+k3       0.75           0.7654..      2.0%
+k4       1.75           1.8478..      5.3%
+
+The largest error is 7.6% in the k2 term which is not used by the algorithm.
+Otherwise the largest error is 5.3%. It is worth noting that k3=k1-k2 and
+k4=k1+k2 when 'fixp'=2, so that the algorithmic substitution in equation 2 is
+valid.
+
+Running inverse DCT with 'fixp'=2 on sample data produced with a forward DCT
+algorithm running in floating point showed very few discrepancies and none
+which were more obvious than the quantisation artefacts. Running with data
+produced by a fixed point forward DCT with 8 bits of precision gave more
+discrepancies, but still none so objectionable as the quantisation.
+
+Recoding the one dimensional inverse DCT to take advantage of the
+simplification caused by 'fixp'=2 produces the following ARM code:
+
+;input in r5,r6,r7,r8
+ MOV r6,r6,LSL #fixp     ;convert y(1) to fixed point
+ MOV r7,r7,LSL #fixp     ;convert y(2) to fixed point
+ ADD r1,r7,r5,LSL #fixp  ;t1=y(0)+y(2) including fixed point conversion for y(0)
+ RSB r7,r7,r5,LSL #fixp  ;t2=y(0)-y(2) - finished with r5, r7
+ ADD r5,r6,r8,LSL #fixp  ;temp=y(1)+y(3) including fp conv for y(3)
+ ADD r3,r5,r5,LSL #2     ;t3=k1*(y(1)+y(3))
+ ADD r0,r8,r8,LSL #1     ;temp=k3*y(3) - finished with r8
+ SUB r8,r3,r0,LSL #fixp  ;t4=t3-y(3)*k3 including fp conv for r8
+ RSB r0,r6,r6,LSL #3     ;temp=k4*y(1) - finished with r6
+ SUB r0,r3,r0            ;t5=t3-y(1)*k4
+ ADD r5,r1,r8,ASR #fixp  ;x(0)=t1+t4
+ SUB r6,r7,r0,ASR #fixp  ;x(1)=t2-t5
+ ADD r7,r7,r0,ASR #fixp  ;x(2)=t2+t5
+ SUB r8,r1,r8,ASR #fixp  ;x(3)=t1-t4
+;output in r5,r6,r7,r8 scaled left by fixp bits
+
+The code now takes only 14 cycles: the complete 4x4 inverse DCT will use 8 of
+these algorithmic steps.
+
+4.2 Encoding the DCT values
+
+Executing the inverse DCT is no longer the bottleneck; extracting the quantised
+DCT values from the input stream and multiplying them by their scale factors is
+more expensive. The first step is to sacrifice some coding density in order to
+present data to the 1x4 inverse DCT algorithm as efficiently as possible. JPEG
+and MPEG systems encode quantised DCT coefficients into variable length
+integers (VLIs) and runs of zeros, traversing the matrix in a zig-zag in order
+to present high frequency components later on and thus maximise their chance of
+being included in a run of zeros (or end of block code). This scanning order is
+expensive to decode and the inverse DCT cannot start until the complete matrix
+has been recovered, resulting in a need to store the entire matrix before
+performing the inverse DCT. A VLI is encoded in two parts: a field saying how
+many bits there are in the VLI, followed by that number of bits.
+
+By encoding the quantised DCT coefficients directly from rows of the matrix,
+the first inverse DCT step can be performed as the values are read from the
+code stream without any intermediate storage. Since a set of four values are
+encoded together, the reads from the input bitstream can take advantage of this
+and read a single value with a high number of bits (<=32 in most cases) into a
+register, then cut bits of it out to make each value. The statistics for values
+in the quantised matrix are used to assign codes for each row as follows:
+
+first bit:
+ 0: signals the start of an encoded DCT block
+   row 1:
+   next bit:
+   0: signals an 8 bit length packet, 2,2,2,2
+   1: signals other length packets:
+     next bit:
+     0: signals a 5 bit length packet, 2,1,1,1
+     1: signals a 12 bit length packet, 3,3,3,3
+   followed by the 4 VLIs themselves
+   row 2:
+   first bit:
+   0: signals an 8 bit length packet, 2,2,2,2
+   1: signals other length packets:
+     next bit:
+     0: signals a 5 bit length packet, 2,1,1,1
+     1: signals a 12 bit length packet, 3,3,3,3
+   followed by the 4 VLIs themselves
+   row 3:
+   first bit:
+   0: signals a 7 bit length packet, 2,2,2,1
+   1: signals other length packets:
+     next bit:
+     0: signals a 4 bit length packet, 1,1,1,1
+     1: signals a 12 bit length packet, 3,3,3,3
+   followed by the 4 VLIs themselves
+   row 4:
+   first bit:
+   0: signals a 4 bit length packet, 1,1,1,1
+   1: signals other length packets:
+     next bit:
+     0: signals a 7 bit length packet, 2,2,1,1
+     1: signals a 12 bit length packet, 3,3,3,3
+   followed by the 4 VLIs themselves
+
+If the length code is zero, there are no bits in the associated VLI at all. Best
+case encoding for the system is:
+
+  row 1: 1,0,<zero5>,<no VLIs>          ;7 bits
+  row 2: 1,0,<zero5>,<no VLIs>          ;7 bits
+  row 3: 1,0,<zero4>,<no VLIs>          ;6 bits
+  row 4: 0,<zero4>,<no VLIs>            ;5 bits
+
+a total of 25 bits (1.56 bits per pixel). In the real system, typical values
+for blocks which could not be encoded by motion are in the range of 40-50 bits
+(around 3 bits per pixel); this higher value reflects the simpler blocks (e.g.
+'sky') having a much higher chance of being found in the motion search. It is
+worth noting that on some machines lookup tables could be used for the shorter
+packets - the lookup table being indexed by the packet plus enough bits to
+definitely encompass the VLIs, the entry in the table yielding the 4 inverse
+DCT'd values. On the ARM machines used, this approach gave inferior performance
+since the tables were too large to cache well enough, leading to a
+corresponding loss in performance when the larger packets came along (since the
+code section for the other sizes of length packet would be less likely to be in
+cache). The row driven encoding makes detection of an all zero row particularly
+easy, however the general statistics of the blocks being encoded meant that
+zero row detection and consequent skipping of the quantisation multiplications
+and inverse 1x4 DCT was only worthwhile for row 4 (it needs to zero the output
+DCT registers, so the cost of skipping the DCT is 4 cycles rather than zero: on
+a sample sequence created with no motion coded blocks the decompressor took
+2.75 seconds without this optimisation, 2.72 with it).
+
+The data flow through the inverse 4x4 DCT can now be arranged to have the
+optimal register to memory transfer characteristics:
+
+   <read row 1 from bitstream>
+   <inverse 1x4 DCT on row 1>
+   <store data as temp row 1>
+   <read row 2 from bitstream>
+   <inverse 1x4 DCT on row 2>
+   <store data as temp row 2>
+   <read row 3 from bitstream>
+   <inverse 1x4 DCT on row 3>
+   <store data as temp row 3>
+   <read row 4 from bitstream>
+   <inverse 1x4 DCT on row 4>
+   <keep data for temp row 4 in registers>
+         (note that the registers needed for reading from the bitstream can now
+          be reused as temporaries for the DCT)
+   <read 3 column data items>
+   <inverse 1x4 DCT on column 1>
+   <convert to pixel values as packed word, store it>
+   <read 3 column data items>
+   <inverse 1x4 DCT on column 2>
+   <convert to pixel values as packed word, store it>
+   <read 3 column data items>
+   <inverse 1x4 DCT on column 3>
+   <convert to pixel values as packed word, store it>
+   <read 3 column data items>
+   <inverse 1x4 DCT on column 4>
+   <convert to pixel values as packed word, store it>
+
+Only 12 values leave the register bank, and they do so as three blocks of four
+(a store multiple instruction on ARM). The values are read back with load
+register instructions, the first one read back ensuring that the others which
+are in the same cache line are loaded to the cache. The final set of four
+pixels are produced in a 32 bit word leading to a single store register
+instruction - the final 'column' has been arranged to be on the X axis by the
+compressor's forward DCT implementation. On machines with enough free registers,
+(another 12 over ARM's 16) no values need leave the register bank, resulting in
+even greater efficiency.
+
+4.3 Fixed quantisation values
+
+As each value is read by the decompressor it must be multiplied by the relevant
+quantisation value. The encoding scheme for each row means that the
+decompressor has inline code for each row format, and thus has unique code for
+multiplying by a quantisation value. If the quantisation values are fixed, then
+this code becomes 'multiply by constant' and saves referring to an array of
+quantisation values. Further, if the constants can be chosen to be of the form
+2^n +/- 1, then the multiplication by the constant could be encoded into one
+RISC instruction. There is also the subsequent shift by 'fixp' to consider as
+the value is converted to fixed point: two instructions will be used in total
+and this allows more values of constants to be chosen (for example,
+multiplication by 12 followed by the 'fixp' shift can be coded as
+multiplication by 3 (one instruction) followed by a shift of 'fixp'+2). Ideal
+quantisation values are of the form 2^n which can be coded as one instruction
+in total (a shift of 'fixp'+n).
+
+Some of the conversion to fixed point is 'free' since the relevant shifts can
+be combined with instructions at the start of the inverse DCT block. By
+individually coding each inverse DCT block for each row, the best possible
+choices of 'free' shift and quantisation value can be increased. The following
+quantisation matrix represented the best tradeoff between quality, code density
+and decompressor algorithm quantisation multiply time. Sometimes there wasn't
+an appropriate way of getting the work (multiplication and conversion to fixed
+point) done in one or two cycles, but there are no situations where the work
+takes more than three.
+
+     | 8,12,16,28|
+     |12,15,20,32|
+     |16,20,30,40|
+     |28,32,40,48|
+
+The symmetrical x/y behaviour is due more to the low number of 'well behaved'
+numbers than to any desire for such symmetry.
+
+4.4 Temporal prediction of DC value
+
+By using a temporal prediction of the DC value (the 0,0 entry of the block) of
+the DCT coefficients, the number of bits encoding the DC value can be reduced
+on average (as opposed to a spatial prediction). An array of predicted values
+(one value per 4x4 block) is kept up to date by the compressor and decompressor
+and the compressor sends the difference between the predicted value and the
+true one. The decompressor either puts the DC value into this array (if the
+block is sent as a 4x4 DCT) or it computes it directly as the average of the
+pixels which compose the block (if the block is a motion coded block).
+
+This scheme reduces the average number of bits in a DCT'd block by 2-4 bits.
+However the computation of the average value of every motion coded block is
+wasteful of processor power: the code computes the average by keeping two 8 bit
+sums in one 32 bit word. For each destination row of 4 pixels, 4 cycles were
+needed:
+
+;r8 is 0x00ff00ff
+;r5 is temporary
+;r6 is two averages, one in 0..8, the other in 16..24
+;r4 contains 4 pixels: 0xPPQQRRSS
+ AND r5,r8,r4        ;r5=00QQ00SS
+ ADD r6,r6,r5        ;r6+=QQ and SS
+ AND r5,r8,r4,LSR #8 ;r5=00PP00RR
+ ADD r6,r6,r5        ;r6+=PP and RR
+
+with a final
+ ADD r6,r6,r6,LSL #16 ;add bottom of r6 to top of r6
+ MOV r6,r6,LSR #16    ;put top of r6 bottom
+
+This is quite cheap at first sight (18 cycles) but it is done on every motion
+coded block (the alternative of computing the average of the block on the spot
+requires four extra LDR instructions which miss the cache since they are from
+the previous frame and therefore take even longer) and ended up being 10% of
+the run time of the system. Since it requires a frame containing the true 8 bit
+per pixel values (rather than just the values put onto the screen as the Replay
+system automatically provides) and since the extra compression wasn't
+essential, this technique was rejected.
+
+5. Motion search
+
+Coding an entire movie as above is possible and the resultant movie can be
+decompressed and painted in real time. One hundred frames of 25 fps 160x128
+frame size, 8 bit per pixel greyscale video were compressed into 670916 bytes
+(2.6 bits per pixel). The resulting file could be decompressed and painted onto
+an 8 bit per pixel screen, with 2:1 magnification by pixel replication in 2.87
+seconds (35 frames per second), but this figure doesn't include disc IO and
+sound processing. Further, 2.6 bits per pixel is too large to allow for playing
+from single speed CD-ROM drives. (The system was a 25MHz ARM610 with a 48MByte
+per second main bus).
+
+Detecting motion in the scene and coding for blocks which have remained in the
+same position or moved by some amount from frame to frame provides both a
+higher compression ratio and an enhanced speed of decompression (assuming the
+work involved in moving the data from frame to frame is cheaper than the
+inverse DCT!).
+
+The simplest scheme is to look at the previous frame and try to find a block
+(possibly at some offset from the current one) which matches the current block.
+Clearly a precise match is unlikely - some error must be allowed for in the
+matching of a block since (for example) quantisation error in the analogue to
+digital conversion sampling stage of 'identical' signals would prevent exact
+matches. The next strategy might be to look for blocks which have some maximum
+sum of squared differences error from the chosen block. This will successfully
+find 'close' blocks for matching, however it also runs the risk of letting
+through blocks with (say) 15 very close pixels and one pixel which is a very
+long way out. The chosen strategy, therefore, was to check that each squared
+difference was less than a limit value (rejecting any block for which the limit
+for a pixel is exceeded), and to select the block with the minimum sum of
+squared differences. The limit check can be refined by varying the limit value
+with the brightness of the pixel (by using a table of limit values indexed
+by the Y value of the pixel) and thus approximating a percentage error rather
+than an absolute error.
+
+Matching blocks using this algorithm gave reasonable results, but frequently
+failed to match blocks that looked the same to the eye. Examination of these
+blocks revealed that they usually failed because just one pixel had a distance
+greater than the limit value. Raising the limit value itself resulted in some
+perceptually bad matches being found elsewhere in the picture, so an
+alternative scheme was developed where just one pixel in a block is allowed to
+have an error of up to twice the limit value (experiments with allowing more
+than one pixel to have larger errors were inconclusive).
+
+When coding the algorithm, a large amount of work can be saved by stopping the
+block match as soon as a limit check fails - in many scenes this check will
+fail on the first pixel in the block and there is then little point in
+computing the squared differences of the other pixels.
+
+5.1 Which blocks to look at
+
+Blocks which are some distance away in the previous frame which match represent
+a velocity for the current block - it moved from offset (x,y) to the current
+position (offset 0,0) in one frame time. In general, velocities are quite low,
+but in some 'difficult to compress' sequences there are high velocities. The
+higher the velocity of a real part of the picture, the more likely there is to
+be a change in the appearance of the data (for example the change in the 2d
+projection of a moving 3d object). This tends to reduce the probability of a
+match with a distant block in the previous frame, while other phenomena such as
+motion blur increase it.
+
+The higher the resolution, the smaller the real world velocity represented by a
+single pixel motion offset in the digitised movie. For MPEG 1 at 352x288 a 1
+pixel motion represents 1/352 movement, while for 160x128, 1 pixel motion
+represents a 1/160 movement.
+
+The more blocks the video compressor looks at, the more asymmetric the
+compression scheme will be - the compression taking longer and longer and the
+decompression taking slightly less time as slightly more blocks are coded as
+moving. So it is simply not worth looking at blocks which have a low enough
+probability of matching - they won't improve the compression density or the
+decompression speed.
+
+Assuming a static coding system for the motion coded blocks simplifies the
+decompressor design, but it does cause a problem in the allocation of codes: if
+they are assigned strictly according to probability, then the 'unlikely' motion
+codes which need to be used on 'difficult to compress' frame sequences have a
+large number of bits, making the code density for difficult sections worse. The
+alternative is to reduce the length of these codes by increasing the length of
+the more frequent codes, making the best case (completely stationary sequence
+of frames) larger. In the coding schemes which follow, some attempt has been
+made to find a compromise between these extremes.
+
+For all schemes, the compressor improves the quality of motion coded data by
+progressively decreasing the allowable maximum of the sum of the squared
+differences (reset when an 'original' DCT encoded block is used). As time
+passes the falling allowable maximum ensures that the block is as close as
+possible to the original. This scheme has an advantage over periodically
+refreshing the entire picture with 'original' DCT encoded blocks since it
+automatically deals with the effect of cuts or pans without wasting bandwidth.
+
+5.2 Simple conditional replenishment
+
+Looking at only the block in the previous frame at the same position is the
+cheapest option for both compressor and decompressor. Coding is trivial - one
+bit to say 'it stayed the same'. Sequences of static blocks could be coded
+more densely, but there is little advantage to this.
+
+Encoding the above 100 frame movie with this technique gives 66306 stationary
+blocks from 128000. The movie as a whole encodes as 389993 bytes (1.5 bits per
+pixel) which is around 60% of the size without the stationary block test. The
+cost of the DCT encoded blocks has risen: the remaining 61694 blocks are
+encoded at 3.1 bits per pixel, nearly 20% worse than the performance of the DCT
+system on the whole movie. Stationary blocks tend to be the scenery:
+backgrounds of grass or sky or studio with few high frequency components.
+Interestingly, this amount of searching makes the compressor run quicker - the
+cost of checking for a match and failing on half the blocks is less than the
+forward DCT and encoding.
+
+5.3 Four nearest neighbours
+
+Checking the four nearest neighbours is the next possibility. Coding is now
+2 bits for the centre case and 4 bits for the 4 neighbours. The block
+search now finds 73971 blocks with the following distribution:
+
+            3433
+      7991 55000  3815
+            3732
+
+The left bias is due to some co-ordinated motion in the sequence and to the
+order of checking the blocks: first check centre, then check (-1,0), (1,0),
+then (0,1) and finally (0,-1) - the first block is taken in case of a tie for
+minimum. The preference for horizontal motion coding is typical of most movies
+- where there is motion or similarity, it is most likely to be horizontal. The
+movie now encodes as 367401 bytes (1.4 bits per pixel): checking these four
+extra locations has improved the compression by nearly 10%. The cost of the DCT
+encoded blocks has risen to 3.2 bits per pixel.
+
+5.4 Eight nearest neighbours
+
+Checking all eight nearest neighbours is the next possibility. Coding is now 2
+bits for the centre case and 5 bits for the neighbours. The block search now
+finds 75420 blocks with the following distribution:
+
+      2154  2663  1187
+      7111 52526  3605
+      2150  2822  1202
+
+(Search order: (0,0), (-1,0), (1,0), (-1,1), (0,1), (1,1), (-1,-1), (0,-1),
+(1,-1).) The movie now encodes as 364434 bytes (still 1.4 bits per pixel):
+checking the extra locations (nearly twice as many) has improved the
+compression by only 1%. The cost of the DCT encoded blocks is still 3.2 bits
+per pixel.
+
+5.5 Diamond 13 and +/- 2 square
+
+The small improvement in 8.3 is repeated: adding more sites to check results
+in small gains. For 13 locations it finds 76749 blocks:
+
+             1062
+       1813  2356  1066
+ 2535  6420 50176  3267  1738
+       1801  2434  1064
+             1017
+
+For 25 locations it finds 77996 blocks:
+
+  567   625   784   472   429
+ 1183  1315  2137   831   635
+ 2203  5956 47691  3163  1550
+  869  1236  2234   839   698
+  457   552   744   408   418
+
+With an encoding of 2 bits for centre, 6 bits for inner 8 (17711 elements), 7
+bits for outer 16 (12594 elements), this results in 360268 bytes for the movie
+- still 1.4 bits per pixel. Compared with 8.3 above, the next 1% gain has taken
+three times the number of search sites. The cost of the DCT encoded blocks has
+risen to 3.24 bits per pixel. The resulting file can be decompressed and
+painted onto an 8 bit per pixel screen, with 2:1 magnification by pixel
+replication in 1.89 seconds (53 frames per second) (cf. section 7), giving a
+fifty percent gain in decompression speed. (without pixel replication, these
+times are 2.54 (39 fps) and 1.56 (64 fps)) This performance was sufficiently
+fast enough to allow for sound, IO and other overheads and the data was
+sufficiently dense to be read from CD-ROM with the addition of sub-sampled
+colour information and sound. Since the size of the DCT encoded blocks is
+rising and thus the time taken to decompress them is increasing, larger motion
+searches may well be harmful (to decompression time).
+
+6. Screen buffer updates
+
+Code to paint the decompressed rectangular image onto the screen is assembled
+for the particular screen mode actually in use when the video is to be played
+from one of 38 handwritten templates (depending on target screen depth, target
+pixel shape and allowable interpolation). This code is highly efficient, for
+example the generated inner loop for 24 bit per pixel screen mode with 2:1
+magnification by pixel replication only is:
+
+;r0: pointer to decompressed frame buffer
+;r2: pointer to destination
+;r3: X number of pixels
+;r11: pointer to second row of destination
+
+ disp   LDMIA r0 !,{r1,r5,r7,r9}                ;load 4 pixels from frame buffer
+        MOV   r4,r1                             ;duplicate horizontally
+        MOV   r6,r5
+        MOV   r8,r7
+        MOV   r10,r9
+        STMIA r2 !,{r1,r4,r5,r6,r7,r8,r9,r10}   ;store 8 pixels horiz to screen
+        STMIA r11!,{r1,r4,r5,r6,r7,r8,r9,r10}   ;and again for vertical duplication
+        LDMIA r0 !,{r1,r5,r7,r9}                ;and repeat for next 4 source pixels
+        MOV   r4,r1
+        MOV   r6,r5
+        MOV   r8,r7
+        MOV   r10,r9
+        STMIA r2 !,{r1,r4,r5,r6,r7,r8,r9,r10}
+        STMIA r11!,{r1,r4,r5,r6,r7,r8,r9,r10}
+        SUBS  r3,r3,#8                          ;loop until exhausted a row
+        BNE   disp
+
+This code uses minimal computation, but a fair amount of the computer's bus
+while painting: a 25 fps 160x128 movie writes 8192000 bytes per second onto the
+screen, and reads 2048000 bytes per second from the frame buffer memory (the
+Acorn Archimedes machine's system busses vary between 25.4 and 50.8 MBytes per
+second). Enough computation power is available on the larger machines to do
+bilinear interpolation (see Appendix A for the code) and it was therefore
+reasonable to assume that a more complicated paint algorithm would be possible
+where the source pixels were mapped onto arbitrary destination pixels in order
+to paint onto any shape. This algorithm would not need a greater write
+bandwidth (if generating the same number of pixels) and this is the most
+demanding activity.
+
+6.1 Arbitrary shape paint algorithm design
+
+To paint an arbitrary irregular shape, two things must be specified: the actual
+pixels covered by the shape on the screen and which pixel of the movie to place
+on which pixel of the shape. For example, if the movie is to be placed on a
+spinning disc, then the shape of the disc would remain constant from frame to
+frame while the pixels of the movie are placed at different positions on the
+disc in successive frames in order to show the rotation.
+
+While it might be possible to compute this simple example in real time, it is
+in general not possible to deal with computing arbitrary mappings of movie pixel
+to shape in real time. By making the definition of a shape include the mapping
+of movie pixel to shape, truly arbitrary effects are possible, and the
+definition of the shape and the painting of it become simpler.
+
+A shape could thus be defined as a list of screen destination coordinates,
+giving the movie source pixel coordinates required at each of them. The paint
+algorithm merely scans the list, picking up the desired pixel from the source
+and putting it at the destination. An obvious efficiency measure is to
+pre-process the data in order to change all coordinate pairs into address
+offsets.
+
+6.2 Efficient shape definition
+
+Implementing the above algorithm produces a very slow paint program. For each
+pixel painted it has to read a word of destination coordinates, a word of
+source coordinates, then read the pixel from the decompressed frame buffer and
+put it on the screen. Definitions of shapes are also rather large!
+
+The process can be made considerably more efficient by bringing back the notion
+of pixels being in some relationship with each other: the shape could be
+expressed in terms of where n successive source pixels are painted, or in terms
+of where n successive destination pixels come from. Choosing the latter form
+has the added advantage of making the painting of pixels onto the screen a STM
+(store multiple) activity again. A shape is defined in terms of a list of
+destination horizontal lines of pixels, with each pixel's source pixel
+specifiable:
+
+shape -> list of 
+     <destination coordinate (startX, Y)>
+     <number of pixels N>
+     coordinates of source pixel 1
+     coordinates of source pixel 2
+     coordinates of source pixel 3
+     ..
+     coordinates of source pixel N
+
+for each list entry, pixels are painted starting at (startX, Y). In the best
+case this reduces the cost for each pixel to reading an extra word (being the
+address of the source). The inner loop code for 24 bit per pixel output, 2:1
+magnification is:
+
+;r0: pointer to decompressed frame buffer
+;r1: pointer to destination
+;r3: N number of pixels
+;r4: pointer to second row of destination
+;r11: screen base address
+;r12: pointer to shape list
+
+        LDMIA r12!,{r1}        ;fetch shape list entry header
+        MOVS  r3,r1,LSR #24    ;extract # pixels
+        BIC   r1,r1,#&ff000000 ;remove top byte
+        ADD   r1,r1,r11        ;add screen base to destination
+        ADD   r4,r1,#rowbytes  ;the number of bytes in a row is a run time
+                               ;assembled constant
+        BEQ   shaponeonly      ;zero is only one pixel left to copy
+ shapdisp                      ;process two pixels if possible
+        LDMIA r12!,{r5,r6}     ;get 2 source pixel addresses
+        LDR   r5,[r0,r5]       ;get pixel
+        LDR   r6,[r0,r6]       ;get pixel
+        MOV   r8,r6            ;consequence of generating from templates
+        MOV   r7,r6            ;duplicate horizontally
+        MOV   r6,r5
+        STMIA r1 !,{r5,r6,r7,r8} ;write duplicated horizontal pixels
+        STMIA r4 !,{r5,r6,r7,r8} ;and again for the second row to duplicate
+                                 ;vertically
+        SUBS  r3,r3,#2         ;still two or more pixels to do?
+        BGT   shapdisp         ;yes: go round again
+        BMI   shapedone        ;branch if done all pixels
+ shaponeonly                   ;one pixel left to do
+        LDMIA r12!,{r5}        ;get source pixel address
+        LDR   r5,[r0,r5]       ;get pixel
+        MOV   r6,r5
+        STMIA r1 !,{r5,r6}
+        STMIA r4 !,{r5,r6}
+ shapedone
+
+The preprocessed list entry has combined the number of pixels (minus one) with
+the offset into the screen for the destination into one word: there is no
+problem to limiting the screen destination to 24 bits of offset. Decompressed
+source pixel coordinates have been processed to an offset which can be directly
+added to the base address of the decompressed frame buffer in order to yield
+the word address of the pixel. In this case there is a one instruction cost for
+generating the code from templates rather than entirely separate routines.
+
+6.3 Refinements
+
+Black and white pixels are available by specifying particular source pixel
+coordinates (negative ones: they are converted to negative offsets from the
+decompressed frame where the pixel values for black and white are placed).
+These pixels may be used to overpaint something that has been moved away, or
+can be just 'part of the shape'.
+
+7. Trajectory files: sequencing the shapes
+
+The system as described so far is useable. It paints an entire movie into a
+single arbitrary shape. However the shape is static: neither the mapping of the
+movie to the shape nor the shape itself change from frame to frame. A
+trajectory file provides a list of shape files, and then instructs the playing
+program how to sequence them: each frame time can have any of the referenced
+shape files placed at any position on screen and kept that way for any number
+of frame times before moving onto the next instruction. For example, the
+trajectory file for opening a movie with a sequence of shapes before playing
+the rest of the movie with the default rectangle is:
+
+          ARMovie Trajectory 1
+          Zoom up to full movie
+          5 steps per second
+          15 shapes
+          ZoomUp.Box04
+          ZoomUp.Box08
+          ZoomUp.Box12
+          ZoomUp.Box16
+          ZoomUp.Box20
+          ZoomUp.Box24
+          ZoomUp.Box28
+          ZoomUp.Box32
+          ZoomUp.Box36
+          ZoomUp.Box40
+          ZoomUp.Box44
+          ZoomUp.Box48
+          ZoomUp.Box52
+          ZoomUp.Box56
+          ZoomUp.Box60
+          16 instances
+          0,0:1
+          0,0:2
+          0,0:3
+          0,0:4
+          0,0:5
+          0,0:6
+          0,0:7
+          0,0:8
+          0,0:9
+          0,0:10
+          0,0:11
+          0,0:12
+          0,0:13
+          0,0:14
+          0,0:15
+          0,0:0;1000000
+
+In this example, the first line is verification that it is a trajectory file.
+The second line is a comment. The third line defines the rate at which the
+trajectory file is advanced; this rate is synchronised to the frame projection
+rate (shapes are only changed when the frame is projected), but is independent
+of it. The fourth line gives the total number of shapes to which this
+trajectory file refers; it is then followed by the file names of these shapes
+(leaf names only, the ARMovie Player program is told where to look for shapes
+separately). These shape files are read in and preprocessed by the Player
+program. Then there follows a list of instances of the shapes. Each instance
+has an offset from the programmer's specified position, a shape and an optional
+number of trajectory time steps to use this shape for (once if not specified).
+Shape 0 is always the default rectangle.
+
+This trajectory file thus plays the movie in 15 shapes, all based at the same
+position for 1/5 of a second, before being played for a very long time in the
+normal rectangle.
+
+8. Future work
+
+The 4x4 DCT compression system described above is in limited use, however there
+are some further developments that we wish to undertake:
+
+* The compressor only runs in constant quality state: most of the use is for
+  constant bandwidth for CD-ROM (indeed, this is why the compressor is only in
+  limited use). Variations in both the DCT quantisation and the pixel match
+  limits will be considered.
+
+* Performance at cuts in the movie is under investigation - the system goes
+  from 1.4 bits per pixel to around 3 bits per pixel (depending on scene
+  content) at a cut. If there are enough cuts, this makes the data much larger.
+
+* Most of the performance aspects have been concentrated on the decompressor.
+  However, the forward DCT implementation could be approximately as quick as
+  the inverse DCT above. Additionally one of the restricted location searches
+  should be small enough cost that the compressor could also run in real time.
+
+The work described on painting into arbitrary shapes was able to produce static
+shapes by Christmas 1992 (resulting inevitably in painting a movie on a
+Christmas tree) and developed to play in sequenced trajectories during 1993,
+including a complete change to the format of trajectory files. It has been used
+for numerous shows, demonstrations and press launches and has indeed managed to
+draw gasps from the jaded computer journalists.
+
+However it is far from perfect, and future work will need to address some of
+the following defects:
+
+* The point sampling of pixels from the decompressed source image leads to
+  aliasing when the image is scaled to fit the shape, though this can be
+  unnoticeable in some sequences even when there is quite bad aliasing since
+  the shape deformations can be much more eye catching.
+
+* The image is painted without any interpolation, leading to a very blocky
+  image compared with the standard interpolated displays. Again this can be
+  over shadowed by the deformations of the shape.
+
+* The preprocessing of the shapes can lead to a noticeable start up delay. For
+  most uses so far, this hasn't been a problem in that the start up has been
+  performed while explanations or other talk was going on and the Player
+  program then left in paused state until the keyed start time.
+
+* If the outline of the shape changes, then it can presently only be unpainted
+  with black (or white) pixels and those unpainting 'instructions' must be
+  coded into the shape files. Ideally the system would be able to 'unpaint'
+  pixels with the original data in the screen buffer.
+
+* The painting algorithm isn't quite fast enough - even compared with the
+  bilinear interpolation algorithm, it uses more cycles per pixel and generates
+  more cache misses for some shapes.
+
+9. Thanks
+
+Thanks go to David Seal at ARM Ltd, to William Stoye at Acorn for constructive
+comments on the 4x4 DCT coding, to Tim Dobson at Acorn for ideas on the
+interpolation coding and to Jonathan Roach at Acorn for generating some of the
+wackier sequences of shapes. And to the rest of the people at ARM Ltd and Acorn
+for providing machines for these flights of fancy to take wing.
+
+Appendix A
+
+When interpolation is to be used, the values coming from the decompressed movie
+frame buffer have the bottom bit of each colour component cleared (thus
+providing only 7 bits of accuracy). The comments refer to pixels labelled:
+
+A B AA
+C D CC
+
+and the bilinear interpolated values are (A+B)/2, (A+C)/2 and (A+B+C+D)/4 as
+the missing pixels around A. Since the bottom bit of each component is cleared,
+(A+B)/2 can be calculated by adding the two words of packed components
+directly: there is no overflow from each parallel bytewise add: this is used to
+speed horizontal only linear interpolation - referring to the code in section
+6, only 4 extra instructions have to be added for horizontal only interpolation
+of each set of four pixels:
+
+;r0: pointer to decompressed frame buffer
+;r2: pointer to destination
+;r3: X number of pixels
+;r11: pointer to second row of destination
+
+ disp   LDMIA r0,{r1,r5,r7,r9,r10}              ;load 5 pixels from frame buffer
+        ADD   r4,r1,r5                          ;interpolate horizontally: add
+        MOV   r4,r4,LSR #1                      ;  and divide by two
+        ADD   r6,r5,r7
+        MOV   r6,r6,LSR #1
+        ADD   r8,r7,r9
+        MOV   r8,r8,LSR #1
+        ADD   r10,r9,r10
+        MOV   r10,r10,LSR #1
+        STMIA r2 !,{r1,r4,r5,r6,r7,r8,r9,r10}   ;store 8 pixels horiz to screen
+        STMIA r11!,{r1,r4,r5,r6,r7,r8,r9,r10}   ;and again for vertical duplication
+
+Full bilinear interpolation is more complicated: clearing the bottom two bits
+of each colour component was not found acceptable and thus the code needs to
+clear the bottom bit of each component when using values which have already
+been interpolated.
+
+;r0: pointer to decompressed frame buffer
+;r2: pointer to destination
+;r3: X number of pixels
+;r11: pointer to second row of destination
+;r10: bit mask 0x00010100
+
+ disp   ADD   r9,r0,#sx%*4           ;base of second row
+        LDMIA r0 !,{r1,r5,r7}        ;A, B, AA
+        ADD   r4,r1,r5
+        MOV   r4,r4,LSR #1           ;A+B/2
+        ADD   r6,r5,r7
+        MOV   r6,r6,LSR #1           ;B+AA/2
+        STMIA r11!,{r1,r4,r5,r6,r7}  ;r4/r6 no longer needed
+        LDMIA r9  ,{r4,r6,r8}        ;C, D, CC
+        ADD   r8,r8,r7
+        MOV   r8,r8,LSR #1           ;AA+CC/2 - CC/C never needed again
+        ADD   r1,r1,r4
+        MOV   r1,r1,LSR #1           ;A+C/2
+        ADD   r5,r5,r6
+        MOV   r5,r5,LSR #1           ;B+D/2
+        BIC   r4,r1,r10              ;A+C/2 bit cleared
+        BIC   r6,r5,r10              ;B+D/2 bit cleared
+        ADD   r4,r4,r6
+        MOV   r4,r4,LSR #1           ;A+B+C+D/4
+        BIC   r9,r8,r10              ;AA+CC/2 bit cleared
+        ADD   r6,r6,r9
+        MOV   r6,r6,LSR #1           ;B+D+AA+CC/4
+        STMIA r2 !,{r1,r4,r5,r6,r8}
+        BIC   r4,r8,r10              ;A+C/2 bit cleared
+        ADD   r8,r0,#sx%*4           ;base of second row
+        LDMIA r0  ,{r5,r9}           ;B, AA
+        ADD   r1,r7,r5               ;A+B
+        MOV   r1,r1,LSR #1           ;A+B/2
+        ADD   r6,r5,r9
+        MOV   r6,r6,LSR #1           ;B+AA/2
+        STMIA r11!,{r1,r5,r6}        ;r4/r6 no longer needed
+        ADD   r0,r0,#4
+        LDMIA r8  ,{r6,r8}           ;D, CC
+        ADD   r9,r8,r9
+        MOV   r9,r9,LSR #1           ;AA+CC/2
+        ADD   r5,r5,r6
+        MOV   r5,r5,LSR #1           ;B+D/2
+        BIC   r6,r5,r10              ;B+D/2 bit cleared
+        ADD   r4,r4,r6
+        MOV   r4,r4,LSR #1           ;A+B+C+D/4
+        BIC   r9,r9,r10              ;AA+CC/2 bit cleared
+        ADD   r6,r6,r9
+        MOV   r6,r6,LSR #1           ;B+D+AA+CC/4
+        STMIA r2 !,{r4,r5,r6}
+        SUBS  r3,r3,#4               ;loop until exhausted a row
+        BNE   disp
+
+Only four pixels are processed per loop, rather than 8 pixels as in the
+pixel replicated or horizontally only interpolated situations.
+
+References
+
+[1] Roger Wilson "Acorn Replay - Software only Full Motion Video from CD-ROM"
+    Multimedia Technologies and Future Applications 1993
+    IEEE Signal Processing Chapter (UKRI Section)
+
+[2] UK Patent No 9209646.0 "Image Data Compression"
+
+[3] Christoph Loeffler, Adriaan Ligtenberg, George S. Moschytz
+    "Practical Fast 1-D DCT Algorithms with 11 Multiplications"
+    ICASSP 1989 p988-991
+
+[4] William Pennebaker, Joan Mitchell
+    "JPEG Still Image Data Compression Standard" p52,
+    Van Nostrand Reinhold 1993, ISBN 0-442-01272-1
+
+[5] Alex van Someran & Carol Atack
+    "The ARM RISC Chip - A Programmer's Guide"
+    Addison-Wesley 1993, ISBN 0-201-62410-9

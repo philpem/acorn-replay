@@ -1,0 +1,72 @@
+OK: we have a YUYV(8) value. How do we convert it quickly to two RGB(8)s?
+
+I think the basic idea is to look up the UV value and then to add Y to it. So
+the colour equations all have to end up as:
+
+R=Y+tr(UV) G=Y+tg(UV) B=Y+tb(UV)
+
+we have the values composed such that it all gets done in parallel:
+
+RGB(8)=YYY(8)+t(UV)
+
+now this involves some dead bits since many of the trgb(UV) entries are
+negative. Thus we can only do this at 7 bits accuracy or pay a penalty for
+re-shrinking the value (and we can't shrink at 8 bits per component with the 5
+bit trick or equivalent since that breaks at 7 bits too).
+
+We can look up the YYY value in a table rather than construct it with ORRs.
+This is probably necessary since it needs scaling.
+
+So what are the equations?
+
+r=v*.701+y
+g=y-.299*.701/.587*v-.114*.886/.587*u
+b=u*.886+y
+
+where r,g,b and y are 0..1 and u and v are -1..1. Now in the encoded format, y
+is represented by 16..235 and u and v by -112..112, and we want r,g,b in the
+range 0..255 (i.e. multiply all the r,g,b by 255 and add .5 (or crudely by
+256)). We also want to trap out of range y,u,v values
+
+y=Y/219,u=(U-128)/112,v=(V-128)/112
+
+R=(v*.701+y)*255
+
+so
+
+R=((V-128)/112*.701+(Y-16)/219)*255
+G=((Y-16)/219-.299*.701/.576*(V-128)/112-.114*.886/.587*(U-128)/112)*255
+B=((Y-16)/219+(U-128)/112*.886)*255
+
+or
+
+R=(Y-16)*255/219+(V-128)/112*255*.701
+G=(Y-16)*255/219-(V-128)/112*255*.299*.701/.576-(U-128)/112*255*.114*.886/.587
+B=(Y-16)*255/219+(U-128)/112*255*.886
+
+we can do something similar to convert to RGB(5) or RGB(4), computing at 7 or 8
+bits, adding a rounding constant and shifting right a bit before shrinking.
+However, this is a problem for dithering unless I use an ordered dither,
+generating two or four different rounded values for each pixel.
+
+so, for the simple case the code looks something like:
+
+r2=YUYV
+
+  AND r3,r2,#&ff000000 ;r3=V
+  AND r4,r2,#&ff00     ;r4=U
+  ORR r3,r3,r4,LSL #8  ;r3=VU at top
+  LDR r3,[table,r3,LSR #14]
+  AND r4,r2,#&ff       ;Y1
+  LDR r4,[table,-r4,LSL #2]
+  ADD r0,r4,r3         ;first mangled answer
+  AND r4,r2,#&ff0000
+  LDR r4,[table,-r4,LSR #14]
+  ADD r1,r4,r3         ;second mangled answer
+
+A table indexed by UV is cache unfriendly... Indexing by 6 bits of U and V
+helps a lot (and the table shrinks to 4096 entries!). Another way is to have
+two tables with U and V indexing each, the V table containing the green and red
+contributions, the U table having green and blue and then add the two together.
+Then the tables shrink to 512 entries. Of course this involves a second LDR in
+the UV processing.
