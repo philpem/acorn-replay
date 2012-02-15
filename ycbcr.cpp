@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <cctype>
 #include "CImg.h"
 
 using namespace cimg_library;
@@ -64,7 +65,7 @@ unsigned char getbits(istream &stream, int i)
 		// read new byte. now nbits=8
 		stream.read((char*)&buf, 1);
 		// grab the lsbits from the new byte
-		tmp |= (buf & ((1 << i-nbits)-1)) << nbits;
+		tmp |= (buf & ((1 << (i-nbits))-1)) << nbits;
 		buf >>= (i-nbits);
 		nbits = 8 - (i - nbits);
 	} else {
@@ -75,7 +76,7 @@ unsigned char getbits(istream &stream, int i)
 	return tmp;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
 /*
 	CImg<int> img(256,256,1,3);
@@ -119,7 +120,17 @@ int main(void)
 	}
 */
 
-	const int WIDTH=192, HEIGHT=148;
+//	const int WIDTH=192, HEIGHT=148;
+
+	int WIDTH, HEIGHT;
+	if (argc == 3) {
+		WIDTH=atoi(argv[1]);
+		HEIGHT=atoi(argv[2]);
+	} else {
+		WIDTH = 192;
+		HEIGHT = 148;
+	}
+
 	CImg<unsigned char> img(WIDTH, HEIGHT, 1, 3);	// 1 dimension, RGB
 	ifstream video("video", ifstream::binary);
 	RGB_TRIPLET t;
