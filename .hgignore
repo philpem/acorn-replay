@@ -4,3 +4,8 @@ syntax: glob
 *.rpl
 *.o
 demux
+mulaw
+sound*
+video
+ycbcr
+Replay3/*
