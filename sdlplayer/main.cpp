@@ -4,8 +4,10 @@
 
 #include "SDL.h"
 
-using namespace std;
+#include "utils.h"
+#include "exceptions.h"
 
+using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////
 // CONFIGURATION CONSTANTS
@@ -17,8 +19,13 @@ const size_t NBUFFERS		= 4;	///< Number of frames to buffer
 // GLOBAL VARIABLES
 /////////////////////////////////////////////////////////////////////////////
 
-char *framebuffer[NBUFFERS];
+/// Frame buffers
+Uint32 *framebuffer[NBUFFERS];
 
+/// Frame buffer head and tail
+size_t fb_head = 0, fb_tail = 0;
+
+/// Global option block
 struct opts_t {
 	Uint16		w;					///< Video width
 	Uint16		h;					///< Video height
@@ -34,18 +41,40 @@ bool quit;
 /////////////////////////////////////////////////////////////////////////////
 
 // Producer thread
-static int decoder(void *data)
+static int decodeThread(void *data)
 {
 	// Convert private-data pointer to something useful
 	istream *in = static_cast<istream*>(data);
 
 	while (!quit) {
+		// 
+
+		// advance write pointer
+		fb_tail++;
 		SDL_Delay(1000);
 	}
+
+	// success
+	return 0;
 }
 
 // Consumer thread
+static int displayThread(void *data)
+{
+	Uint32 ticks = SDL_GetTicks();
 
+	while (!quit) {
+		// draw frame
+
+		// advance read pointer
+		// TODO: mutex! counter!
+		fb_head++;
+		Uint32 newticks = SDL_GetTicks();
+		SDL_Delay(opts.framedelay - (newticks - ticks));
+		ticks = newticks;
+		// delay T=frametime - actualdelta
+	}
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // MAIN FUNCTION
@@ -68,6 +97,8 @@ int main(int argc, char **argv)
 		cerr << "Unable to set video mode: " << SDL_GetError() << endl;
 		return -1;
 	}
+
+	// Read the Replay file header
 
 	// TODO: create frame buffer
 	// TODO: set up producer/consumer threads
