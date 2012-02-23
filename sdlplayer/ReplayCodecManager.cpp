@@ -1,7 +1,6 @@
 #include "ReplayCodecManager.h"
 
 using namespace std;
-using namespace replay;
 
 ReplayCodecManager* ReplayCodecManager::pInstance = NULL;
 

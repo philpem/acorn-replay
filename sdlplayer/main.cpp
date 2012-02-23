@@ -9,7 +9,6 @@
 #include "ReplayCodecManager.h"
 
 using namespace std;
-using namespace replay;
 
 /////////////////////////////////////////////////////////////////////////////
 // CONFIGURATION CONSTANTS
@@ -108,10 +107,10 @@ int main(int argc, char **argv)
 #endif
 
 	ReplayCodecManager *rcm = ReplayCodecManager::inst();
-	cout << "Codec 0 = " << rcm->getVideoCodecName(0);
-	cout << "Codec 1 = " << rcm->getVideoCodecName(1);
-	cout << "Codec 100 = " << rcm->getVideoCodecName(100);
-	cout << "Codec 1234 = " << rcm->getVideoCodecName(1234);
+	cout << "Codec 0 = " << rcm->getVideoCodecName(0) << endl;
+	cout << "Codec 1 = " << rcm->getVideoCodecName(1) << endl;
+	cout << "Codec 100 = " << rcm->getVideoCodecName(100) << endl;
+	cout << "Codec 1234 = " << rcm->getVideoCodecName(1234) << endl;
 
 	return 0;
 }

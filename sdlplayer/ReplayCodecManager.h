@@ -8,8 +8,6 @@
  * @file
  */
 
-namespace replay {
-
 /**
  * @brief Sound formats supported by Replay.
  *
@@ -67,8 +65,6 @@ class ReplayCodecManager {
 
 		/// List of registered video decompressors
 };
-
-} // namespace replay
 
 #endif // _ReplayCodecManager_H
 
