@@ -1,5 +1,8 @@
 #include <iostream>
 #include <string>
+#include <sstream>
+
+#include "utils.h"
 #include "ReplayCatalogue.h"
 
 using namespace std;

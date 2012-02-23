@@ -1,6 +1,8 @@
 #ifndef _ReplayCatalogue_H
 #define _ReplayCatalogue_H
 
+#include <vector>
+
 /**
  * @brief An entry in a Replay file's chunk catalogue.
  */
@@ -13,7 +15,7 @@ typedef struct {
  */
 class ReplayCatalogue {
 	private:
-		vector<ReplayCatalogueEntry>	entries;
+		std::vector<ReplayCatalogueEntry>	entries;
 
 	public:
 		/**
@@ -26,7 +28,7 @@ class ReplayCatalogue {
 		 *
 		 * Assumes the stream is positioned at the start of the catalogue block.
 		 */
-		void load(istream &stream, const size_t numChunks);
+		void load(std::istream &stream, const size_t numChunks);
 
 		/**
 		 * @brief Get catalogue size
