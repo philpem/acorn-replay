@@ -1,0 +1,43 @@
+namespace av {
+
+
+class IInputStream {
+	public:
+		void get(buf, size) =0;
+		size_t getpos() =0;
+		void seek(size_t pos) =0;
+		string gettype() =0;
+};
+
+class IDemuxer {
+	public:
+		connect(IInputStream *datasource) =0;
+		size_t getvideo(buf, size) =0;
+		size_t getaudio(buf, size) =0;
+		string gettype() =0;
+}
+
+class FileSource : IInputStream {
+	public:
+		FileSource();
+		FileSource(std::string filename);
+		open(std::string filename);
+};
+
+class ReplayDemuxer : IDemuxer {
+	public:
+		ReplayDemuxer();
+		ReplayDemuxer(IInputStream *input);
+		connect(IInputStream *input);
+};
+
+
+
+
+VideoDecoderFactory : Singleton, AbstractFactory {
+	RegisterDecoder(int codecID, string codecName, CreateFunction fcn);
+	IVideoDecoder *Construct(int codecID);
+}
+
+
+}; // namespace av
