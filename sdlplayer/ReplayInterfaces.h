@@ -2,6 +2,7 @@
 #define _ReplayInterfaces_H
 
 #include <iostream>
+#include <string>
 
 class IDemuxer {
 	public:
@@ -9,6 +10,7 @@ class IDemuxer {
 		IDemuxer(std::istream *strm);
 		virtual void connect(std::istream *strm);
 		virtual ~IDemuxer() {};
+		virtual std::string getType(void)								=0;
 		virtual size_t getVideo(const size_t bufsize, char *buf)		=0;
 		virtual size_t getAudio(const size_t bufsize, char *buf)		=0;
 

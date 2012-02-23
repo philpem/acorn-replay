@@ -4,7 +4,7 @@ CXXFLAGS	:=	$(shell sdl-config --cflags)
 LDFLAGS		:=	$(shell sdl-config --libs)
 
 TGT			:=	sam
-OBJS		:=	main.o utils.o ReplayCodecManager.o ReplayInterfaces.o
+OBJS		:=	main.o utils.o ReplayCodecManager.o ReplayInterfaces.o ReplayDemuxer.o ReplayCatalogue.o
 
 .PHONY: all tidy clean
 
