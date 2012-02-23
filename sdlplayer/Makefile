@@ -5,7 +5,7 @@ LDFLAGS		:=	$(shell sdl-config --libs)
 
 TGT			:=	sam
 
-OBJS		:= $(addprefix obj/, main.o utils.o ReplayCodecManager.o ReplayInterfaces.o ReplayDemuxer.o ReplayCatalogue.o)
+OBJS		:= $(addprefix obj/, main.o utils.o ReplayCodecManager.o ReplayInterfaces.o ReplayDemuxer.o ReplayCatalogue.o ReplayDemuxer.o)
 
 .PHONY: all tidy clean
 
@@ -22,13 +22,13 @@ $(TGT):	$(OBJS)
 	@echo "Building executable $@"
 	$(QUIET)$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-obj/%.o obj/%.d: %.c
+obj/%.o: %.c
 ifeq ($(QUIET),@)
 	@echo "Compiling $<"
 endif
 	$(QUIET)$(CC) -MMD -MP -MT $@ -c $(CFLAGS) $< -o $@
 
-obj/%.o obj/%.d: %.cpp
+obj/%.o: %.cpp
 ifeq ($(QUIET),@)
 	@echo "Compiling $<"
 endif
