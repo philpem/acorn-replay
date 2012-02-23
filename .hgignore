@@ -3,6 +3,7 @@ syntax: glob
 .*.sw?
 *.rpl
 *.o
+*.d
 demux
 mulaw
 sound*
