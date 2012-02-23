@@ -6,8 +6,10 @@
 
 #include "utils.h"
 #include "exceptions.h"
+#include "ReplayCodecManager.h"
 
 using namespace std;
+using namespace replay;
 
 /////////////////////////////////////////////////////////////////////////////
 // CONFIGURATION CONSTANTS
@@ -82,6 +84,7 @@ static int displayThread(void *data)
 //
 int main(int argc, char **argv)
 {
+#if 0
 	SDL_Surface *screen;
 
 	// Initialise SDL
@@ -102,6 +105,13 @@ int main(int argc, char **argv)
 
 	// TODO: create frame buffer
 	// TODO: set up producer/consumer threads
+#endif
+
+	ReplayCodecManager *rcm = ReplayCodecManager::inst();
+	cout << "Codec 0 = " << rcm->getVideoCodecName(0);
+	cout << "Codec 1 = " << rcm->getVideoCodecName(1);
+	cout << "Codec 100 = " << rcm->getVideoCodecName(100);
+	cout << "Codec 1234 = " << rcm->getVideoCodecName(1234);
 
 	return 0;
 }

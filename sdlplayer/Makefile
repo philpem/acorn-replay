@@ -3,5 +3,19 @@ CXX			:=	g++
 CXXFLAGS	:=	$(shell sdl-config --cflags)
 LDFLAGS		:=	$(shell sdl-config --libs)
 
-sam:	main.o utils.o
-	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
+TGT			:=	sam
+OBJS		:=	main.o utils.o ReplayCodecManager.o
+
+.PHONY: all tidy clean
+
+all:	$(TGT)
+
+tidy:
+	-rm -f *~
+
+clean:
+	-rm -f *~
+	-rm -f $(OBJS) $(TGT)
+
+$(TGT):	$(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
