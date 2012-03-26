@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <string>
 
 #include "SDL.h"
@@ -7,6 +8,7 @@
 #include "utils.h"
 #include "exceptions.h"
 #include "ReplayCodecManager.h"
+#include "ReplayDemuxer.h"
 
 using namespace std;
 
@@ -106,11 +108,11 @@ int main(int argc, char **argv)
 	// TODO: set up producer/consumer threads
 #endif
 
-	ReplayCodecManager *rcm = ReplayCodecManager::inst();
-	cout << "Codec 0 = " << rcm->getVideoCodecName(0) << endl;
-	cout << "Codec 1 = " << rcm->getVideoCodecName(1) << endl;
-	cout << "Codec 100 = " << rcm->getVideoCodecName(100) << endl;
-	cout << "Codec 1234 = " << rcm->getVideoCodecName(1234) << endl;
+	ifstream replayfile("../ani1.rpl");
+	ReplayDemuxer demux(&replayfile);
+
+	cout << demux.getType() << endl;
+	demux.DumpDebugInfo();
 
 	return 0;
 }
