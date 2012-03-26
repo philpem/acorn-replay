@@ -40,6 +40,7 @@ class ReplayDemuxer : public IDemuxer {
 		std::string getType(void) { return "ReplayDemuxer"; };
 		size_t getVideo(const size_t bufsize, char *buf);
 		size_t getAudio(const size_t bufsize, char *buf);
+		void DumpDebugInfo(void);
 
 	private:
 		std::string					_movieName, _copyright, _author;
@@ -65,7 +66,6 @@ class ReplayDemuxer : public IDemuxer {
 		ReplayCatalogue				_catalogue;
 
 		void LoadReplayHeader(void);
-		void DumpDebugInfo(void);
 		REPLAY_SOUND_FORMAT decodeSoundFormat(std::string formatstring);
 };
 

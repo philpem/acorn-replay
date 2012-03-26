@@ -7,14 +7,15 @@
 
 using namespace std;
 
-ReplayDemuxer::ReplayDemuxer()
+ReplayDemuxer::ReplayDemuxer() : IDemuxer()
 {
-//	LoadReplayHeader();
+	// empty ctor shouldn't try and load the Replay header...!
+	// TODO: connect method
 }
 
-ReplayDemuxer::ReplayDemuxer(std::istream *strm)
+ReplayDemuxer::ReplayDemuxer(std::istream *strm) : IDemuxer(strm)
 {
-//	LoadReplayHeader();
+	LoadReplayHeader();
 }
 
 void ReplayDemuxer::LoadReplayHeader(void)
