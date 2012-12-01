@@ -180,8 +180,8 @@ int main(int argc, char **argv)
 				img(x+1, y, 0, 0) = t.r; img(x+1, y, 0, 1) = t.g; img(x+1, y, 0, 2) = t.b;
 			}
 		}
-		cout << "frame " << frame++ << endl;
-		if (frame == 120) img.display(0);
+		//cout << "frame " << frame++ << endl;
+		/*if (frame == 120)*/ img.display(0);
 	}
 
 	return 0;
