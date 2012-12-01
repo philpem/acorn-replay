@@ -22,5 +22,5 @@ mulaw: mulaw.o
 	$(CXX) $(CXXFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 ycbcr: ycbcr.o
-	$(CXX) $(CXXFLAGS) $(CFLAGS) $(LDFLAGS) -lpthread -lX11 -o $@ $^
+	$(CXX) $(CXXFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lpthread -lX11
 

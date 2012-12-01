@@ -1,6 +1,6 @@
 CC			:=	gcc
 CXX			:=	g++
-CXXFLAGS	:=	$(shell sdl-config --cflags)
+CXXFLAGS	:=	$(shell sdl-config --cflags) -g -ggdb
 LDFLAGS		:=	$(shell sdl-config --libs)
 
 TGT			:=	sam
