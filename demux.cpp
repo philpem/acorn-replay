@@ -298,6 +298,8 @@ ReplayFile::ReplayFile(istream &stream)
 	string st;
 	istringstream ist;
 
+	ist.exceptions(istringstream::failbit | istringstream::badbit);
+
 	// Line 1: ARMovie [fixed]
 	getline(stream, st);
 	TrimSpaces(st);
@@ -313,21 +315,21 @@ ReplayFile::ReplayFile(istream &stream)
 	std::getline(stream, _author);		TrimSpaces(_author);
 
 	// video compression format
-	std::getline(stream, _sVideoFormat); TrimSpaces(_sVideoFormat); ist.str(_sVideoFormat);
+	std::getline(stream, _sVideoFormat); TrimSpaces(_sVideoFormat); ist.str(_sVideoFormat); ist.clear();
 	ist >> _iVideoFormat;
 	// TODO: decode the compression format parameter list
 
 	// X size in pixels
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _xSize;
 	// TODO: decode optional aspect ratio
 
 	// Y size in pixels
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _ySize;
 
 	// Pixel depth in bits
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _bpp;
 	// This line also encodes the colour space type (YUV or RGB)
 	std::transform(st.begin(), st.end(), st.begin(), ::toupper);
@@ -340,24 +342,24 @@ ReplayFile::ReplayFile(istream &stream)
 	}
 
 	// Number of frames per second
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _fps;
 	// TODO: decode optional start timecode
 
 	// Sound compression format
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _iSoundFormat;
 
 	// Sound rate in Hz
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _soundSampleRate;
 
 	// Number of audio channels
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _iSoundChannels;
 
 	// Bits per sound sample and sound format
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _iSoundBitsPerSample;
 	_sCustomSoundFormat = "";
 	if (_iSoundFormat == 0) {
@@ -377,37 +379,37 @@ ReplayFile::ReplayFile(istream &stream)
 	}
 
 	// Frames per chunk
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _iFramesPerChunk;
 
 	// Chunk count
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _iNumberOfChunks;
 
 	// Even chunk size
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _iEvenChunkSize;
 
 	// Odd chunk size
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _iOddChunkSize;
 
 	// Catalogue offset
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _oCatalogueOffset;
 
 	// Offset to sprite
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _oSpriteOffset;
 
 	// Size of sprite
-	std::getline(stream, st); TrimSpaces(st); ist.str(st);
+	std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 	ist >> _iSpriteSize;
 
 	// Keyframe position (ONLY FOR VIDEO!)
 	// Set to -1 for "no keys"
 	if (_iVideoFormat != 0) {
-		std::getline(stream, st); TrimSpaces(st); ist.str(st);
+		std::getline(stream, st); TrimSpaces(st); ist.str(st); ist.clear();
 		ist >> _iKeyframes;
 	} else {
 		_iKeyframes = -1;
