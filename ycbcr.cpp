@@ -27,9 +27,9 @@ RGB_TRIPLET YUV2RGB(int y, int u, int v)
 	int r,g,b;
 
 	// YUV to RGB conversion
-	r = (1.164*(y/*-16*/))                     + (2.018*(u-128));
+	r = (1.164*(y/*-16*/)) + (1.596 * (v-128));
 	g = (1.164*(y/*-16*/)) - (0.813 * (v-128)) - (0.391*(u-128));
-	b = (1.164*(y/*-16*/)) + (1.596 * (v-128));
+	b = (1.164*(y/*-16*/))                     + (2.018*(u-128));
 
 	// clip values
 	if (r > 255) r = 255;
@@ -150,8 +150,8 @@ int main(int argc, char **argv)
 				 ***/
 				Ys[x+0] = getbits(video, 5) << 3;
 				Ys[x+1] = getbits(video, 5) << 3;
-				Vs[x+0] = (getbits(video, 5) << 3) + 128;
 				Us[x+0] = (getbits(video, 5) << 3) + 128;
+				Vs[x+0] = (getbits(video, 5) << 3) + 128;
 			}
 
 			for (int x=1; x<WIDTH-1; x+=2) {
@@ -180,9 +180,17 @@ int main(int argc, char **argv)
 				img(x+1, y, 0, 0) = t.r; img(x+1, y, 0, 1) = t.g; img(x+1, y, 0, 2) = t.b;
 			}
 		}
-		//cout << "frame " << frame++ << endl;
-		/*if (frame == 120)*/ img.display(0);
+		frame++;
+		// cout << "frame " << frame++ << endl;
+#ifdef SAVE_TO_FILE
+		img.save("out/frame.png", frame);
+#else
+		/*if (frame == 120)*/
+			img.display(0);
+#endif
 	}
+
+	cout << frame << " frames" << endl;
 
 	return 0;
 }
